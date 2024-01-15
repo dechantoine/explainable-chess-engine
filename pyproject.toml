@@ -7,11 +7,12 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.11"
-chess = "^1.10.0"
 loguru = "^0.7.2"
 pandas = "^2.1.4"
 jupyter = "^1.0.0"
 torch = "^2.1.2"
+python-chess = "^1.999"
+tqdm = "^4.66.1"
 
 
 [build-system]
