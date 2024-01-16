@@ -62,7 +62,7 @@ def game_to_board_tensor(game: chess.pgn.Game) -> np.array:
 
 
 @logger.catch
-def batch_game_to_board_tensor(batch_games: list) -> list:
+def batch_game_to_board_tensor(batch_games: list[chess.pgn.Game]) -> list[np.array]:
     return [game_to_board_tensor(game) for game in tqdm(batch_games)]
 
 
@@ -74,4 +74,9 @@ def game_to_legal_moves_tensor(game: chess.pgn.Game) -> np.array:
         board.push(move)
         legal_moves_tensors.append(board_to_legal_moves_tensor(board))
     return legal_moves_tensors
+
+
+@logger.catch
+def batch_game_to_legal_moves_tensor(batch_games: list[chess.pgn.Game]) -> list[np.array]:
+    return [game_to_legal_moves_tensor(game) for game in tqdm(batch_games)]
 
