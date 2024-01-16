@@ -33,7 +33,24 @@ def string_to_array(str_board: str, is_white: bool = True) -> np.array:
 
 
 @logger.catch
-def game_to_tensor(game: chess.pgn.Game) -> np.array:
+def uci_to_coordinates(move: chess.Move) -> tuple:
+    return (7 - move.from_square // 8, move.from_square % 8),\
+        (7 - move.to_square // 8, move.to_square % 8)
+
+
+@logger.catch
+def board_to_legal_moves_tensor(board: chess.Board) -> np.array:
+    legal_moves = board.legal_moves
+    moves_tensor = np.zeros(shape=(8*8, 8*8))
+    for move in legal_moves:
+        from_coordinates, to_coordinates = uci_to_coordinates(move)
+        moves_tensor[from_coordinates[0]*8 + from_coordinates[1],
+                     to_coordinates[0]*8 + to_coordinates[1]] = 1
+    return moves_tensor
+
+
+@logger.catch
+def game_to_board_tensor(game: chess.pgn.Game) -> np.array:
     board = game.board()
     boards_tensors = []
     for move in game.mainline_moves():
@@ -45,5 +62,16 @@ def game_to_tensor(game: chess.pgn.Game) -> np.array:
 
 
 @logger.catch
-def batch_game_to_tensor(batch_games: list) -> list:
-    return [game_to_tensor(game) for game in tqdm(batch_games)]
+def batch_game_to_board_tensor(batch_games: list) -> list:
+    return [game_to_board_tensor(game) for game in tqdm(batch_games)]
+
+
+@logger.catch
+def game_to_legal_moves_tensor(game: chess.pgn.Game) -> np.array:
+    board = game.board()
+    legal_moves_tensors = []
+    for move in game.mainline_moves():
+        board.push(move)
+        legal_moves_tensors.append(board_to_legal_moves_tensor(board))
+    return legal_moves_tensors
+
