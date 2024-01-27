@@ -32,6 +32,7 @@ def string_to_array(str_board: str, is_white: bool = True) -> np.array:
                      for piece in list(dict_pieces[key])])
 
 
+#TODO: test for castling !
 @logger.catch
 def uci_to_coordinates(move: chess.Move) -> tuple:
     return (7 - move.from_square // 8, move.from_square % 8),\
@@ -50,33 +51,43 @@ def board_to_legal_moves_tensor(board: chess.Board) -> np.array:
 
 
 @logger.catch
-def game_to_board_tensor(game: chess.pgn.Game) -> np.array:
-    board = game.board()
-    boards_tensors = []
-    for move in game.mainline_moves():
-        board.push(move)
-        str_board = format_board(board)
-        boards_tensors.append([string_to_array(str_board),
-                               string_to_array(str_board, is_white=False)])
-    return np.array(boards_tensors)
+def batch_boards_to_legal_moves_tensor(batch_boards: list[chess.Board]) -> list[np.array]:
+    return [board_to_legal_moves_tensor(board) for board in tqdm(batch_boards)]
 
 
 @logger.catch
-def batch_game_to_board_tensor(batch_games: list[chess.pgn.Game]) -> list[np.array]:
-    return [game_to_board_tensor(game) for game in tqdm(batch_games)]
+def batch_boards_to_board_tensor(batch_boards: list[chess.Board]) -> list[np.array]:
+    return [string_to_array(format_board(board)) for board in tqdm(batch_boards)]
 
 
 @logger.catch
 def game_to_legal_moves_tensor(game: chess.pgn.Game) -> np.array:
     board = game.board()
-    legal_moves_tensors = []
+    boards = []
     for move in game.mainline_moves():
         board.push(move)
-        legal_moves_tensors.append(board_to_legal_moves_tensor(board))
-    return legal_moves_tensors
+        boards.append(board.copy())
+    legal_moves_tensors = batch_boards_to_legal_moves_tensor(boards)
+    return np.array(legal_moves_tensors)
 
 
 @logger.catch
 def batch_game_to_legal_moves_tensor(batch_games: list[chess.pgn.Game]) -> list[np.array]:
     return [game_to_legal_moves_tensor(game) for game in tqdm(batch_games)]
+
+
+@logger.catch
+def game_to_board_tensor(game: chess.pgn.Game) -> np.array:
+    board = game.board()
+    boards = []
+    for move in game.mainline_moves():
+        board.push(move)
+        boards.append(board.copy())
+    board_tensors = batch_boards_to_board_tensor(boards)
+    return np.array(board_tensors)
+
+
+@logger.catch
+def batch_game_to_board_tensor(batch_games: list[chess.pgn.Game]) -> list[np.array]:
+    return [game_to_board_tensor(game) for game in tqdm(batch_games)]
 
