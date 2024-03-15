@@ -80,7 +80,7 @@ def moves_to_tensor(moves: list[chess.Move]) -> np.array:
     Returns:
         np.array: tensor of possible moves from each square.
     """
-    moves_tensor = np.zeros(shape=(8*8, 8*8))
+    moves_tensor = np.zeros(shape=(8*8, 8*8), dtype=np.int8)
     for move in moves:
         from_coordinates, to_coordinates = uci_to_coordinates(move)
         moves_tensor[from_coordinates[0]*8 + from_coordinates[1],
@@ -101,7 +101,8 @@ def board_to_tensor(board: chess.Board) -> np.array:
     """
     return np.concatenate((string_to_array(format_board(board)),
                            string_to_array(format_board(board), is_white=False)),
-                          axis=0)
+                          axis=0,
+                          dtype=np.int8)
 
 
 @logger.catch
@@ -189,11 +190,11 @@ def result_to_tensor(result: str) -> np.array:
     """
     try:
         if result == "1-0":
-            return np.array([1])
+            return np.array([1], dtype=np.int8)
         elif result == "0-1":
-            return np.array([-1])
+            return np.array([-1], dtype=np.int8)
         elif result == "1/2-1/2":
-            return np.array([0])
+            return np.array([0], dtype=np.int8)
         else:
             raise ValueError(f"Result {result} not supported.")
     except ValueError as e:
