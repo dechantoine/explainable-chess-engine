@@ -13,6 +13,12 @@ jupyter = "^1.0.0"
 torch = "^2.1.2"
 python-chess = "^1.999"
 tqdm = "^4.66.1"
+pytest = "^8.1.1"
+
+[tool.pytest.ini_options]
+addopts = [
+    "--import-mode=importlib",
+]
 
 
 [build-system]
