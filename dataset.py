@@ -5,8 +5,10 @@ import chess.pgn
 import torch
 from torch import Tensor
 from torch.utils.data import Dataset
+import numpy as np
 
-from utils import board_to_tensor, moves_to_tensor, batch_boards_to_tensor, batch_moves_to_tensor
+from utils import (board_to_tensor, moves_to_tensor, result_to_tensor,
+                   batch_boards_to_tensor, batch_moves_to_tensor, batch_results_to_tensor)
 from loguru import logger
 
 
@@ -14,19 +16,32 @@ class ChessBoardDataset(Dataset):
     """Chess boards with legal moves dataset."""
 
     @logger.catch
-    def __init__(self, root_dir, transform=None, target_transform=None):
+    def __init__(self,
+                 root_dir: str,
+                 return_moves: bool = False,
+                 return_outcome: bool = False,
+                 transform: bool = False):
         """
         Arguments:
             root_dir (string): Directory with all the PGNs.
+            return_moves (bool): Return the legal moves for each board.
+            return_outcome (bool): Return the outcome of the game for each board.
+            transform (bool): Apply the transform to the boards and legal moves.
         """
         self.root_dir = root_dir
         self.transform = transform
-        self.target_transform = target_transform
+        self.return_moves = return_moves
+        self.return_outcome = return_outcome
         self.list_pgn_files = [f for f in os.listdir(self.root_dir) if f.endswith(".pgn")]
         self.board_indices = self.get_boards_indices()
 
     @logger.catch
-    def get_boards_indices(self):
+    def get_boards_indices(self) -> list[tuple[int, int, int]]:
+        """Get the indices of all the boards in the dataset.
+
+        Returns:
+            list[tuple[int, int, int]]: List of tuples containing the file index, game index, and move index.
+        """
         list_board_indices = []
         for i, file in enumerate(self.list_pgn_files):
             pgn = open(self.root_dir + "/" + file)
@@ -39,9 +54,19 @@ class ChessBoardDataset(Dataset):
                 j += 1
         return list_board_indices
 
-
     @logger.catch
-    def retrieve_board(self, idx: int):
+    def retrieve_board(self, idx: int) -> (chess.Board, int, int, str):
+        """Retrieve the board at the given index of the dataset.
+
+        Args:
+            idx (int): Index of the board to retrieve.
+
+        Returns:
+            board (chess.Board): The board at the given index.
+            move_id (int): The latest move index in the game.
+            total_moves (int): The total number of moves in the game.
+            result (str): The result of the game.
+        """
         file_id, game_id, move_id = self.board_indices[idx]
         file = self.list_pgn_files[file_id]
         logger.info(f"file: {file}, game_id: {game_id}, move_id: {move_id}")
@@ -51,10 +76,12 @@ class ChessBoardDataset(Dataset):
         for j in range(game_id):
             game = chess.pgn.read_game(pgn)
 
+        result = game.headers["Result"]
         board = game.board()
-        for move in list(game.mainline_moves())[:move_id]:
+        mainline = list(game.mainline_moves())
+        for move in mainline[:move_id]:
             board.push(move)
-        return board
+        return board, move_id, len(mainline), result
 
     @logger.catch
     def __len__(self):
@@ -65,16 +92,29 @@ class ChessBoardDataset(Dataset):
         if torch.is_tensor(idx):
             idx = int(idx.item())
 
-        board_sample = self.retrieve_board(idx)
+        board_sample, move_id, game_len, game_result = self.retrieve_board(idx)
         legal_moves_sample = list(board_sample.legal_moves)
+        outcome = {"move_id": move_id,
+                   "game_length": game_len,
+                   "game_result": game_result}
 
         if self.transform:
             board_sample = torch.tensor(board_to_tensor(board_sample))
-
-        if self.target_transform:
             legal_moves_sample = torch.tensor(moves_to_tensor(legal_moves_sample))
+            outcome = torch.tensor([move_id,
+                                    game_len,
+                                    result_to_tensor(game_result)[0]])
 
-        return board_sample, legal_moves_sample
+        if self.return_moves and self.return_outcome:
+            return board_sample, legal_moves_sample, outcome
+
+        if self.return_moves:
+            return board_sample, legal_moves_sample
+
+        if self.return_outcome:
+            return board_sample, outcome
+
+        return board_sample
 
     @logger.catch
     def __getitems__(self, indices: Union[Tensor, list[int]]):
@@ -83,16 +123,36 @@ class ChessBoardDataset(Dataset):
 
         board_samples = []
         legal_moves_samples = []
+        outcomes = []
 
         for i in indices:
-            board = self.retrieve_board(i)
-            board_samples.append(board)
-            legal_moves_samples.append(list(board.legal_moves))
+            board_sample, move_id, game_len, game_result = self.retrieve_board(i)
+            legal_moves_sample = list(board_sample.legal_moves)
+            outcome = {"move_id": move_id,
+                       "game_length": game_len,
+                       "game_result": game_result}
+
+            board_samples.append(board_sample)
+            legal_moves_samples.append(legal_moves_sample)
+            outcomes.append(outcome)
 
         if self.transform:
             board_samples = torch.tensor(batch_boards_to_tensor(board_samples))
-
-        if self.target_transform:
             legal_moves_samples = torch.tensor(batch_moves_to_tensor(legal_moves_samples))
+            moves_ids = np.array([outcome["move_id"] for outcome in outcomes])
+            game_lens = np.array([outcome["game_length"] for outcome in outcomes])
+            game_results = batch_results_to_tensor([outcome["game_result"] for outcome in outcomes]).flatten()
+            outcomes = torch.tensor(np.array([moves_ids,
+                                              game_lens,
+                                              game_results]).T)
 
-        return board_samples, legal_moves_samples
+        if self.return_moves and self.return_outcome:
+            return board_samples, legal_moves_samples, outcomes
+
+        if self.return_moves:
+            return board_samples, legal_moves_samples
+
+        if self.return_outcome:
+            return board_samples, outcomes
+
+        return board_samples
