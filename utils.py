@@ -174,3 +174,42 @@ def game_to_board_tensor(game: chess.pgn.Game) -> np.array:
     board_tensors = batch_boards_to_tensor(boards)
     return np.array(board_tensors)
 
+
+@logger.catch
+def result_to_tensor(result: str) -> np.array:
+    """
+    Convert a game result to a tensor. The tensor is of shape (1,) and contains 1 for a white win, 0 for a draw and -1 for a
+    white loss.
+
+    Args:
+        result (str): game result.
+
+    Returns:
+        np.array: tensor of game result.
+    """
+    try:
+        if result == "1-0":
+            return np.array([1])
+        elif result == "0-1":
+            return np.array([-1])
+        elif result == "1/2-1/2":
+            return np.array([0])
+        else:
+            raise ValueError(f"Result {result} not supported.")
+    except ValueError as e:
+        logger.error(e)
+
+
+@logger.catch
+def batch_results_to_tensor(batch_results: list[str]) -> np.array:
+    """
+    Convert a batch of game results to a tensor. The tensor is of shape (nb_games, 1) and contains a tensor of game result
+    for each game of the batch.
+
+    Args:
+        batch_results (list[str]): batch of game results.
+
+    Returns:
+        np.array: tensor of game results.
+    """
+    return np.array([result_to_tensor(result) for result in tqdm(batch_results)])
