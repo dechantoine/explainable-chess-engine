@@ -136,10 +136,13 @@ class ChessBoardDataset(Dataset):
             outcomes.append(outcome)
 
         if self.transform:
+            logger.info("Transforming the boards to tensors...")
             board_samples = torch.tensor(batch_boards_to_tensor(board_samples))
+            logger.info("Transforming the legal moves to tensors...")
             legal_moves_samples = torch.tensor(batch_moves_to_tensor(legal_moves_samples))
             moves_ids = np.array([outcome["move_id"] for outcome in outcomes])
             game_lens = np.array([outcome["game_length"] for outcome in outcomes])
+            logger.info("Transforming the outcomes to tensors...")
             game_results = batch_results_to_tensor([outcome["game_result"] for outcome in outcomes]).flatten()
             outcomes = torch.tensor(np.array([moves_ids,
                                               game_lens,
