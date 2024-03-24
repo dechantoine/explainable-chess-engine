@@ -7,8 +7,8 @@ from torch import Tensor
 from torch.utils.data import Dataset
 import numpy as np
 
-from src.data.utils import (board_to_tensor, moves_to_tensor, result_to_tensor,
-                            batch_boards_to_tensor, batch_moves_to_tensor, batch_results_to_tensor)
+from src.data.data_utils import (board_to_tensor, moves_to_tensor, result_to_tensor,
+                                 batch_boards_to_tensor, batch_moves_to_tensor, batch_results_to_tensor)
 from loguru import logger
 
 
