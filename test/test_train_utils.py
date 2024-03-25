@@ -23,5 +23,5 @@ class TrainUtilsTestCase(unittest.TestCase):
         assert len(train_set) + len(test_set) == len(self.dataset)
         assert all(i not in test_set.board_indices for i in train_set.board_indices)
         assert all(i not in train_set.board_indices for i in test_set.board_indices)
-        assert all(i in self.dataset.board_indices for i in train_set.board_indices)
-        assert all(i in self.dataset.board_indices for i in test_set.board_indices)
+        self.assertCountEqual(train_set.board_indices + test_set.board_indices,
+                              self.dataset.board_indices)
