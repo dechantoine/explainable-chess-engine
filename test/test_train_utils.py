@@ -1,7 +1,8 @@
 from src.data.dataset import ChessBoardDataset
-from src.train.train_utils import train_test_split
+from src.train.train_utils import train_test_split, reward_fn
 
 from loguru import logger
+import torch
 
 import unittest
 
@@ -12,6 +13,10 @@ class TrainUtilsTestCase(unittest.TestCase):
                                          return_moves=False,
                                          return_outcome=False,
                                          transform=False)
+
+        self.outcomes = torch.tensor([[50, 60, 1], [20, 40, 0], [10, 40, -1]])
+        self.gamma = 0.99
+        self.expected = torch.tensor([0.99 ** 10, 0, -1 * (0.99 ** 30)])
 
     @logger.catch
     def test_train_test_split(self):
@@ -25,3 +30,10 @@ class TrainUtilsTestCase(unittest.TestCase):
         assert all(i not in train_set.board_indices for i in test_set.board_indices)
         self.assertCountEqual(train_set.board_indices + test_set.board_indices,
                               self.dataset.board_indices)
+
+
+    @logger.catch
+    def test_reward_fn(self):
+        rewards = reward_fn(outcome=self.outcomes, gamma=0.99)
+
+        torch.testing.assert_allclose(rewards, self.expected)
