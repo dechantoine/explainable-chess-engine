@@ -20,24 +20,30 @@ class ChessBoardDataset(Dataset):
                  root_dir: str,
                  return_moves: bool = False,
                  return_outcome: bool = False,
-                 transform: bool = False):
+                 transform: bool = False,
+                 include_draws: bool = False
+                 ):
         """
         Arguments:
             root_dir (string): Directory with all the PGNs.
             return_moves (bool): Return the legal moves for each board.
             return_outcome (bool): Return the outcome of the game for each board.
             transform (bool): Apply the transform to the boards and legal moves.
+            include_draws (bool): Include draws in the dataset.
         """
         self.root_dir = root_dir
         self.transform = transform
         self.return_moves = return_moves
         self.return_outcome = return_outcome
         self.list_pgn_files = [f for f in os.listdir(self.root_dir) if f.endswith(".pgn")]
-        self.board_indices = self.get_boards_indices()
+        self.board_indices = self.get_boards_indices(include_draws=include_draws)
 
     @logger.catch
-    def get_boards_indices(self) -> list[tuple[int, int, int]]:
+    def get_boards_indices(self, include_draws: bool = False) -> list[tuple[int, int, int]]:
         """Get the indices of all the boards in the dataset.
+
+        Args:
+            include_draws (bool): Include draws in the dataset.
 
         Returns:
             list[tuple[int, int, int]]: List of tuples containing the file index, game index, and move index.
@@ -45,13 +51,15 @@ class ChessBoardDataset(Dataset):
         list_board_indices = []
         for i, file in enumerate(self.list_pgn_files):
             pgn = open(self.root_dir + "/" + file)
-            j = 0
+            j = -1
             while True:
                 game = chess.pgn.read_game(pgn)
                 if game is None:
                     break
-                list_board_indices.extend([(i, j, k) for k in range(len(list(game.mainline_moves())))])
                 j += 1
+                if not include_draws and game.headers["Result"] == "1/2-1/2":
+                    continue
+                list_board_indices.extend([(i, j, k) for k in range(len(list(game.mainline_moves())))])
         return list_board_indices
 
     @logger.catch
