@@ -2,10 +2,13 @@ from src.data.dataset import ChessBoardDataset
 
 from loguru import logger
 import numpy as np
+import torch
 from copy import deepcopy
 
+
 @logger.catch
-def train_test_split(dataset: ChessBoardDataset, seed: int, train_size: float) -> (ChessBoardDataset, ChessBoardDataset):
+def train_test_split(dataset: ChessBoardDataset, seed: int, train_size: float) -> (
+ChessBoardDataset, ChessBoardDataset):
     """Split the provided dataset into a training and testing set.
 
     Args:
@@ -30,3 +33,17 @@ def train_test_split(dataset: ChessBoardDataset, seed: int, train_size: float) -
     test_set.board_indices = [dataset.board_indices[i] for i in test_indices]
 
     return train_set, test_set
+
+
+@logger.catch
+def reward_fn(outcome: torch.Tensor, gamma: float = 0.99):
+    """Calculate the reward for the given outcome.
+
+    Args:
+        outcome (torch.Tensor): Outcome of the game.
+        gamma (float): Discount factor.
+
+    Returns:
+        float: Reward for the given outcome.
+    """
+    return (gamma ** (outcome[:, 1] - outcome[:, 0])) * outcome[:, 2]
