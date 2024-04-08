@@ -12,15 +12,23 @@ class ChessBoardTestCase(unittest.TestCase):
         self.dataset = ChessBoardDataset(root_dir="../test/test_data",
                                          return_moves=False,
                                          return_outcome=False,
-                                         transform=False)
+                                         transform=False,
+                                         include_draws=True)
 
     @logger.catch
     def test_get_boards_indices(self):
-        indices = self.dataset.get_boards_indices()
+        indices = self.dataset.get_boards_indices(include_draws=True)
         assert isinstance(indices, list)
         assert all(isinstance(x, tuple) for x in indices)
         assert all(len(x) == 3 for x in indices)
         assert all(isinstance(x[i], int) for x in indices for i in range(3))
+
+        self.dataset.return_outcome = True
+        indices_no_draws = self.dataset.get_boards_indices(include_draws=False)
+
+        _, results = self.dataset.__getitems__([indices.index(x) for x in indices_no_draws])
+        assert len(indices) > len(indices_no_draws)
+        assert all(result != "1/2-1/2" for result in results)
 
     @logger.catch
     def test_retrieve_board(self):
