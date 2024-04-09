@@ -36,7 +36,7 @@ ChessBoardDataset, ChessBoardDataset):
 
 
 @logger.catch
-def reward_fn(outcome: torch.Tensor, gamma: float = 0.99):
+def reward_fn(outcome: torch.Tensor, gamma: float = 0.99) -> torch.Tensor:
     """Calculate the reward for the given outcome.
 
     Args:
@@ -44,6 +44,6 @@ def reward_fn(outcome: torch.Tensor, gamma: float = 0.99):
         gamma (float): Discount factor.
 
     Returns:
-        float: Reward for the given outcome.
+        tensor: Rewards for the given outcomes.
     """
-    return (gamma ** (outcome[:, 1] - outcome[:, 0])) * outcome[:, 2]
+    return torch.Tensor((gamma ** (outcome[:, 1] - outcome[:, 0])) * outcome[:, 2])
