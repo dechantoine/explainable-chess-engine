@@ -79,9 +79,9 @@ class ChessBoardDataset(Dataset):
         file = self.list_pgn_files[file_id]
         pgn = open(self.root_dir + "/" + file)
 
-        game = chess.pgn.read_game(pgn)
         for j in range(game_id):
-            game = chess.pgn.read_game(pgn)
+            chess.pgn.skip_game(pgn)
+        game = chess.pgn.read_game(pgn)
 
         result = game.headers["Result"]
         board = game.board()
@@ -106,8 +106,8 @@ class ChessBoardDataset(Dataset):
                    "game_result": game_result}
 
         if self.transform:
-            board_sample = torch.tensor(board_to_tensor(board_sample))
-            legal_moves_sample = torch.tensor(moves_to_tensor(legal_moves_sample))
+            board_sample = torch.from_numpy(board_to_tensor(board_sample))
+            legal_moves_sample = torch.from_numpy(moves_to_tensor(legal_moves_sample))
             outcome = torch.tensor([move_id,
                                     game_len,
                                     result_to_tensor(game_result)[0]])
@@ -145,9 +145,9 @@ class ChessBoardDataset(Dataset):
 
         if self.transform:
             logger.info("Transforming the boards to tensors...")
-            board_samples = torch.tensor(batch_boards_to_tensor(board_samples))
+            board_samples = torch.from_numpy(batch_boards_to_tensor(board_samples))
             logger.info("Transforming the legal moves to tensors...")
-            legal_moves_samples = torch.tensor(batch_moves_to_tensor(legal_moves_samples))
+            legal_moves_samples = torch.from_numpy(batch_moves_to_tensor(legal_moves_samples))
             moves_ids = np.array([outcome["move_id"] for outcome in outcomes])
             game_lens = np.array([outcome["game_length"] for outcome in outcomes])
             logger.info("Transforming the outcomes to tensors...")
