@@ -14,6 +14,7 @@ torch = "^2.1.2"
 python-chess = "^1.999"
 tqdm = "^4.66.1"
 pytest = "^8.1.1"
+snakeviz = "^2.2.0"
 
 [tool.pytest.ini_options]
 addopts = [
