@@ -1,4 +1,7 @@
-import torch
+from torch.utils.data import DataLoader
+from torch.optim import Adagrad
+from torch.nn import MSELoss
+from torch.profiler import profile, record_function, ProfilerActivity
 
 from src.data.dataset import ChessBoardDataset
 from src.models.simple_feed_forward import SimpleFF
@@ -20,27 +23,31 @@ if __name__ == "__main__":
     logger.info(f"Train dataset size: {len(train_dataset)}")
     logger.info(f"Test dataset size: {len(test_dataset)}")
 
-    train_dataloader = torch.utils.data.DataLoader(train_dataset,
-                                                   batch_size=64,
-                                                   shuffle=True,
-                                                   collate_fn=lambda x: x)
+    train_dataloader = DataLoader(train_dataset,
+                                  batch_size=64,
+                                  shuffle=True,
+                                  collate_fn=lambda x: x)
 
-    test_dataloader = torch.utils.data.DataLoader(test_dataset,
-                                                  batch_size=64,
-                                                  shuffle=True,
-                                                  collate_fn=lambda x: x)
+    test_dataloader = DataLoader(test_dataset,
+                                 batch_size=64,
+                                 shuffle=True,
+                                 collate_fn=lambda x: x)
 
     model = SimpleFF()
-    optimizer = torch.optim.Adagrad(model.parameters(), lr=0.01)
-    loss = torch.nn.MSELoss()
+    optimizer = Adagrad(model.parameters(), lr=0.01)
+    loss = MSELoss()
 
-    for batch in train_dataloader:
-        boards, moves, outcomes = batch
-        optimizer.zero_grad()
-        pred = model(boards).reshape(-1)
-        targets = reward_fn(outcome=outcomes, gamma=0.99)
-        loss_value = loss(pred, targets)
-        loss_value.backward()
-        optimizer.step()
-        logger.info(f'Loss: {loss_value.item()}')
+    with profile(activities=[ProfilerActivity.CPU],
+                 record_shapes=True) as prof:
+        for i in range(10):
+            batch = next(iter(train_dataloader))
+            boards, moves, outcomes = batch
+            optimizer.zero_grad()
+            pred = model(boards).reshape(-1)
+            targets = reward_fn(outcome=outcomes, gamma=0.99)
+            loss_value = loss(pred, targets)
+            loss_value.backward()
+            optimizer.step()
+            logger.info(f'Loss: {loss_value.item()}')
 
+    logger.info(prof.key_averages(group_by_input_shape=True).table(sort_by="cpu_time_total", row_limit=10))
