@@ -1,0 +1,110 @@
+[Event "LAT-ch"]
+[Site "LAT"]
+[Date "1952.??.??"]
+[Round "?"]
+[White "Klasup, Karlis"]
+[Black "Tal, Mihail"]
+[Result "0-1"]
+[WhiteElo ""]
+[BlackElo ""]
+[ECO "D46"]
+
+1.d4 Nf6 2.c4 e6 3.Nf3 d5 4.Nc3 c6 5.e3 Nbd7 6.Bd3 Bb4 7.a3 Ba5 8.O-O O-O
+9.Ne5 Nxe5 10.dxe5 dxc4 11.Bxc4 Nd7 12.f4 Qe7 13.b4 Bb6 14.Qb3 f6 15.Bxe6+ Kh8
+16.Ne4 fxe5 17.Kh1 exf4 18.exf4 Nf6 19.Ng5 Ne4 20.Nf7+ Rxf7 21.Bxf7 Nf2+
+22.Kg1 Nd3+ 23.Kh1 Qe2 24.Bb2 Bh3 25.Bxg7+ Kxg7 26.Bd5 cxd5 27.Qxd5 Kh8 28.Qg5 Bd4
+29.gxh3 Rg8 30.Rae1 Nxe1  0-1
+
+[Event "Riga-ch"]
+[Site "Riga"]
+[Date "1952.??.??"]
+[Round "?"]
+[White "Tal, Mihail"]
+[Black "Klasup, Karlis"]
+[Result "1-0"]
+[WhiteElo ""]
+[BlackElo ""]
+[ECO "A82"]
+
+1.d4 f5 2.e4 fxe4 3.Nc3 Nf6 4.f3 d5 5.fxe4 dxe4 6.Bc4 Bf5 7.Nge2 Nc6 8.O-O e6
+9.Bb5 a6 10.Ba4 Qd7 11.Bg5 O-O-O 12.Kh1 Be7 13.Bxf6 Bxf6 14.d5 exd5 15.Bxc6 bxc6
+16.Nd4 Bg4 17.Qd2 Qd6 18.Nb3 c5 19.h3 h5 20.Na5 e3 21.Qxe3 d4 22.Qe4 dxc3
+23.Qb7+ Kd7 24.Nc4 Qd4 25.Nb6+ Ke8 26.bxc3 Qd6 27.Nc4 Qg3 28.Rae1+ Kf8 29.Re3 Qh4
+30.Qxc7 Kg8 31.Kg1 Bc8 32.Rf4 Qg5 33.Ref3 Kh7 34.h4 Rd1+ 35.Kh2 Qd5 36.Rg3 Bg4
+37.Rxf6 Qxc4 38.Rf5 Kh6 39.Rxh5+ Kxh5 40.Qxg7 Qf4 41.Qxh8+ Kg6 42.Qg8+ Kf5
+43.Qc8+ Ke5 44.Qxg4 Qxg4 45.Rxg4 Rd2 46.Rg5+ Kf4 47.Rxc5 Rxc2 48.Rc6 Kg4
+49.Rc4+ Kh5 50.a4 Rd2 51.Kh3 Rd3+ 52.g3 Rd6 53.a5 Rd5 54.g4+ Kg6 55.Rc6+ Kf7
+56.Rxa6 Rd3+ 57.Kg2 Rxc3 58.h5 Kg7 59.Rb6 Ra3 60.a6 Kf7 61.Kh2 Kg7 62.g5 Ra5
+63.Rb7+ Kg8 64.a7  1-0
+
+[Event "Riga-ch"]
+[Site "Riga"]
+[Date "1952.??.??"]
+[Round "?"]
+[White "Mileika, Janis"]
+[Black "Tal, Mihail"]
+[Result "1/2-1/2"]
+[WhiteElo ""]
+[BlackElo ""]
+[ECO "D44"]
+
+1.d4 d5 2.c4 e6 3.Nc3 Nf6 4.Nf3 c6 5.Bg5 dxc4 6.e4 b5 7.e5 h6 8.Bh4 g5 9.Nxg5 hxg5
+10.Bxg5 Nbd7 11.g3 Bb7 12.Bg2 Qb6 13.exf6 O-O-O 14.O-O c5 15.Bxb7+ Qxb7 16.a4 cxd4
+17.Qxd4 Nc5 18.Qg4 b4 19.Nb5 a6 20.Nd4 Nd3 21.Nxe6 fxe6 22.Qxe6+ Kb8 23.f7 Rc8
+24.Rad1 Bc5 25.b3 Qf3 26.Be3 Qc6 27.Qxc6 Rxc6 28.bxc4 Nb2 29.Rd5 Nxa4 30.g4 Rf8
+31.Rf5 Bxe3 32.fxe3 b3 33.g5 b2 34.Rb1 Rxc4 35.Kg2 Rc1 36.Rxb2+ Nxb2 37.g6 Rc6
+38.Rg5 Rf6 39.h4 R6xf7 40.gxf7 Rxf7 41.h5 Nc4  1/2-1/2
+
+[Event "Riga-ch sf"]
+[Site "Riga"]
+[Date "1952.??.??"]
+[Round "?"]
+[White "Tal, Mihail"]
+[Black "Segal, Alexandru Sorin"]
+[Result "1-0"]
+[WhiteElo ""]
+[BlackElo ""]
+[ECO "B07"]
+
+1.e4 d6 2.d4 Nf6 3.Bd3 Nc6 4.Ne2 Nb4 5.O-O Nxd3 6.cxd3 g6 7.Nbc3 Bg7 8.e5 Ng4
+9.h3 Nh6 10.Bg5 c6 11.Qd2 Nf5 12.Bf4 O-O 13.exd6 exd6 14.d5 Nd4 15.Nxd4 Bxd4
+16.Bh6 Bg7 17.Bxg7 Kxg7 18.dxc6 bxc6 19.Ne4 d5 20.Qc3+ f6 21.Nc5 Qd6 22.Rfe1 Rf7
+23.Re8 Rb8 24.Rae1 Rb5 25.b4 a5 26.a3 axb4 27.axb4 Bd7 28.Rd8 Qc7 29.Rxd7 Rxd7
+30.Ne6+  1-0
+
+[Event "Riga-ch"]
+[Site "Riga"]
+[Date "1952.??.??"]
+[Round "?"]
+[White "Tal, Mihail"]
+[Black "Lozov"]
+[Result "1-0"]
+[WhiteElo ""]
+[BlackElo ""]
+[ECO "E18"]
+
+1.c4 e6 2.Nf3 d5 3.d4 Nf6 4.g3 Be7 5.Bg2 O-O 6.O-O b6 7.Nc3 Bb7 8.Ne5 Qc8
+9.cxd5 Nxd5 10.Nxd5 Bxd5 11.e4 Bb7 12.Qc2 c5 13.d5 Rd8 14.Bh3 Qc7 15.Bf4 Bd6
+16.Nxf7 Kxf7 17.Bxe6+ Ke8 18.e5 Bf8 19.Qxh7 Rxd5 20.Qg6+ Kd8 21.Bg5+ Be7
+22.Qf7 Nd7 23.Qg8+  1-0
+
+[Event "Riga-ch"]
+[Site "Riga"]
+[Date "1952.??.??"]
+[Round "?"]
+[White "Pasman, M."]
+[Black "Tal, Mihail"]
+[Result "1-0"]
+[WhiteElo ""]
+[BlackElo ""]
+[ECO "E92"]
+
+1.d4 Nf6 2.c4 d6 3.Nf3 g6 4.Nc3 Bg7 5.e4 O-O 6.Be2 e5 7.d5 Nh5 8.g3 a5 9.h3 Bd7
+10.Nh2 Nf6 11.Bg5 h6 12.Be3 Bxh3 13.g4 Nxe4 14.Nxe4 Bg2 15.Rg1 Bxe4 16.f3 Qh4+
+17.Kd2 Qxh2 18.Rh1 Qg2 19.Rg1 Qh2 20.Rh1 Qg2 21.fxe4 Qxe4 22.Rg1 f5 23.Bd3 Qxd3+
+24.Kxd3 f4 25.Bf2 Nd7 26.g5 h5 27.Ke4 f3 28.Be3 Rf5 29.Rf1 Raf8 30.Qc2 Nc5+
+31.Bxc5 dxc5 32.Ke3 Kh7 33.Rad1 Rf4 34.d6 cxd6 35.Rxd6 e4 36.Rd7 Kh8 37.Rxg7 Kxg7
+38.Qh2 R4f5 39.Rf2 Rxg5 40.Kxe4 Rgf5 41.Qc7+ R8f7 42.Qxa5 g5 43.Qd8 h4 44.Rxf3 Rxf3
+45.Qxg5+ Kf8 46.Qxc5+ Kg8 47.Qg5+ Kf8 48.Qxh4 R3f6 49.Qh8+ Ke7 50.Qb8 b6
+51.Kd4 Kd7 52.Kc3 Kc6 53.Qc8+ Rc7 54.Qa8+ Kd7 55.Qg8 Rfc6 56.b3 Rc5 57.a4 R5c6
+58.Qg4+ Kd8 59.b4 Rc8 60.Qf4 R8c7 61.Kb3 Kc8 62.Qe4 Kb8 63.Qd5 Kc8 64.Qb5 Kb7  1-0
