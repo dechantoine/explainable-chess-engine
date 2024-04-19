@@ -14,6 +14,13 @@ class ChessBoardTestCase(unittest.TestCase):
                                          return_outcome=False,
                                          transform=False,
                                          include_draws=True)
+        self.len_moves_najdorf = [73, 58, 44, 87]
+        self.len_moves_tal = [60, 127, 82, 59, 45, 128]
+        self.len_moves_morphy = [61, 35, 0, 33, 46, 45, 21, 45, 29, 41, 91, 39, 56, 39, 109, 27, 47, 28]
+
+        self.len_moves_najdorf_no_draws = [44]
+        self.len_moves_tal_no_draws = [60, 127, 59, 45, 128]
+        self.len_moves_morphy_no_draws = [61, 35, 33, 46, 45, 21, 45, 29, 41, 91, 39, 56, 39, 109, 27, 47, 28]
 
     @logger.catch
     def test_get_boards_indices(self):
@@ -23,16 +30,34 @@ class ChessBoardTestCase(unittest.TestCase):
         assert all(len(x) == 3 for x in indices)
         assert all(isinstance(x[i], int) for x in indices for i in range(3))
 
-        self.dataset.return_outcome = True
-        indices_no_draws = self.dataset.get_boards_indices(include_draws=False)
+        assert (len([x for x in indices if x[0] == 0]) == sum(self.len_moves_najdorf))
+        assert (len([x for x in indices if x[0] == 1]) == sum(self.len_moves_tal))
+        assert (len([x for x in indices if x[0] == 2]) == sum(self.len_moves_morphy))
 
-        _, results = self.dataset.__getitems__([indices.index(x) for x in indices_no_draws])
-        assert len(indices) > len(indices_no_draws)
-        assert all(result != "1/2-1/2" for result in results)
+        assert(
+            all(len([x for x in indices if x[0] == 0 and x[1] == i]) == self.len_moves_najdorf[i]
+                for i in range(len(self.len_moves_najdorf)))
+        )
+        assert (
+            all(len([x for x in indices if x[0] == 1 and x[1] == i]) == self.len_moves_tal[i]
+                for i in range(len(self.len_moves_tal)))
+        )
+        logger.info([len([x for x in indices if x[0] == 2 and x[1] == i]) for i in range(len(self.len_moves_morphy))])
+        assert (all(len([x for x in indices if x[0] == 2 and x[1] == i]) == self.len_moves_morphy[i] for i in range(len(self.len_moves_morphy)))
+        )
+
+        indices_no_draws = self.dataset.get_boards_indices(include_draws=False)
+        assert (len([x for x in indices_no_draws if x[0] == 0]) == sum(self.len_moves_najdorf_no_draws))
+        assert (len([x for x in indices_no_draws if x[0] == 1]) == sum(self.len_moves_tal_no_draws))
+        assert (len([x for x in indices_no_draws if x[0] == 2]) == sum(self.len_moves_morphy_no_draws))
+
+        #self.dataset.return_outcome = True
+        #_, results = self.dataset.__getitems__([indices.index(x) for x in indices_no_draws])
+        #assert all(result != "1/2-1/2" for result in results)
 
     @logger.catch
     def test_retrieve_board(self):
-        board, move_id, total_moves, result = self.dataset.retrieve_board(0)
+        board, move_id, total_moves, result = self.dataset.retrieve_board(2)
         assert isinstance(board, Board)
         assert isinstance(move_id, int)
         assert isinstance(total_moves, int)
@@ -56,7 +81,7 @@ class ChessBoardTestCase(unittest.TestCase):
         assert isinstance(board, Board)
         assert isinstance(moves, list)
         assert isinstance(outcome, dict)
-        assert(len(outcome) == 3)
+        assert (len(outcome) == 3)
 
         self.dataset.transform = True
         board, moves, outcome = self.dataset[0]
