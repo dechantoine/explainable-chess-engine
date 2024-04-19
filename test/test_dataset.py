@@ -20,7 +20,7 @@ class ChessBoardTestCase(unittest.TestCase):
 
         self.len_moves_najdorf_no_draws = [44]
         self.len_moves_tal_no_draws = [60, 127, 59, 45, 128]
-        self.len_moves_morphy_no_draws = [61, 35, 33, 46, 45, 21, 45, 29, 41, 91, 39, 56, 39, 109, 27, 47, 28]
+        self.len_moves_morphy_no_draws = [61, 35, 0, 33, 46, 45, 21, 45, 29, 41, 91, 39, 56, 39, 109, 27, 47, 28]
 
     @logger.catch
     def test_get_boards_indices(self):
@@ -42,7 +42,6 @@ class ChessBoardTestCase(unittest.TestCase):
             all(len([x for x in indices if x[0] == 1 and x[1] == i]) == self.len_moves_tal[i]
                 for i in range(len(self.len_moves_tal)))
         )
-        logger.info([len([x for x in indices if x[0] == 2 and x[1] == i]) for i in range(len(self.len_moves_morphy))])
         assert (all(len([x for x in indices if x[0] == 2 and x[1] == i]) == self.len_moves_morphy[i] for i in range(len(self.len_moves_morphy)))
         )
 
@@ -92,3 +91,44 @@ class ChessBoardTestCase(unittest.TestCase):
         assert board.shape == (12, 8, 8)
         assert moves.shape == (64, 64)
         assert outcome.shape == (3,)
+
+    @logger.catch
+    def test_get_items(self):
+        boards = self.dataset.__getitems__([0, 1, 2])
+        assert isinstance(boards, list)
+        assert all(isinstance(b, Board) for b in boards)
+
+        boards = self.dataset.__getitems__(Tensor([0, 1, 2]))
+        assert isinstance(boards, list)
+        assert all(isinstance(b, Board) for b in boards)
+
+        self.dataset.return_moves = True
+        boards, moves = self.dataset.__getitems__([0, 1, 2])
+        assert isinstance(boards, list)
+        assert all(isinstance(b, Board) for b in boards)
+        assert isinstance(moves, list)
+        assert all(isinstance(m, list) for m in moves)
+
+        self.dataset.return_outcome = True
+        boards, moves, outcomes = self.dataset.__getitems__([0, 1, 2])
+        assert isinstance(boards, list)
+        assert all(isinstance(b, Board) for b in boards)
+        assert isinstance(moves, list)
+        assert all(isinstance(m, list) for m in moves)
+        assert isinstance(outcomes, list)
+        assert all(isinstance(o, dict) for o in outcomes)
+
+        self.dataset.transform = True
+        boards, moves, outcomes = self.dataset.__getitems__([0, 1, 2])
+        assert isinstance(boards, Tensor)
+        assert all(isinstance(b, Tensor) for b in boards)
+        assert isinstance(moves, Tensor)
+        assert all(isinstance(m, Tensor) for m in moves)
+        assert isinstance(outcomes, Tensor)
+        assert all(isinstance(o, Tensor) for o in outcomes)
+
+        assert all(b.shape == (12, 8, 8) for b in boards)
+        assert all(m.shape == (64, 64) for m in moves)
+        assert all(o.shape == (3,) for o in outcomes)
+
+
