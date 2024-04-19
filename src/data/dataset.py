@@ -136,7 +136,7 @@ class ChessBoardDataset(Dataset):
     @logger.catch
     def __getitems__(self, indices: Union[Tensor, list[int]]):
         if torch.is_tensor(indices):
-            indices = indices.tolist()
+            indices = indices.int().tolist()
 
         board_samples = []
         legal_moves_samples = []
