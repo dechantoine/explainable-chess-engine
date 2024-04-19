@@ -47,12 +47,12 @@ def string_to_array(str_board: str, is_white: bool = True) -> np.array:
     """
     list_board = list(str_board)
     key = "white" if is_white else "black"
-    return np.array([np.reshape([1*(p == piece) for p in list_board],
+    return np.array([np.reshape([1 * (p == piece) for p in list_board],
                                 newshape=(8, 8))
                      for piece in list(dict_pieces[key])])
 
 
-#TODO: test for castling !
+# TODO: test for castling !
 @logger.catch
 def uci_to_coordinates(move: chess.Move) -> tuple:
     """
@@ -64,7 +64,7 @@ def uci_to_coordinates(move: chess.Move) -> tuple:
     Returns:
         tuple: coordinates of the origin square and coordinates of the destination square.
     """
-    return (7 - move.from_square // 8, move.from_square % 8),\
+    return (7 - move.from_square // 8, move.from_square % 8), \
         (7 - move.to_square // 8, move.to_square % 8)
 
 
@@ -80,11 +80,11 @@ def moves_to_tensor(moves: list[chess.Move]) -> np.array:
     Returns:
         np.array: tensor of possible moves from each square.
     """
-    moves_tensor = np.zeros(shape=(8*8, 8*8), dtype=np.int8)
+    moves_tensor = np.zeros(shape=(8 * 8, 8 * 8), dtype=np.int8)
     for move in moves:
         from_coordinates, to_coordinates = uci_to_coordinates(move)
-        moves_tensor[from_coordinates[0]*8 + from_coordinates[1],
-                     to_coordinates[0]*8 + to_coordinates[1]] = 1
+        moves_tensor[from_coordinates[0] * 8 + from_coordinates[1],
+                     to_coordinates[0] * 8 + to_coordinates[1]] = 1
     return moves_tensor
 
 
@@ -176,6 +176,7 @@ def game_to_board_tensor(game: chess.pgn.Game) -> np.array:
     return np.array(board_tensors)
 
 
+@logger.catch(exclude=ValueError)
 def result_to_tensor(result: str) -> np.array:
     """
     Convert a game result to a tensor. The tensor is of shape (1,) and contains 1 for a white win, 0 for a draw and -1 for a
