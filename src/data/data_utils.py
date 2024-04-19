@@ -176,7 +176,6 @@ def game_to_board_tensor(game: chess.pgn.Game) -> np.array:
     return np.array(board_tensors)
 
 
-@logger.catch
 def result_to_tensor(result: str) -> np.array:
     """
     Convert a game result to a tensor. The tensor is of shape (1,) and contains 1 for a white win, 0 for a draw and -1 for a
@@ -188,17 +187,14 @@ def result_to_tensor(result: str) -> np.array:
     Returns:
         np.array: tensor of game result.
     """
-    try:
-        if result == "1-0":
-            return np.array([1], dtype=np.int8)
-        elif result == "0-1":
-            return np.array([-1], dtype=np.int8)
-        elif result == "1/2-1/2":
-            return np.array([0], dtype=np.int8)
-        else:
-            raise ValueError(f"Result {result} not supported.")
-    except ValueError as e:
-        logger.error(e)
+    if result == "1-0":
+        return np.array([1], dtype=np.int8)
+    elif result == "0-1":
+        return np.array([-1], dtype=np.int8)
+    elif result == "1/2-1/2":
+        return np.array([0], dtype=np.int8)
+    else:
+        raise ValueError(f"Result {result} not supported.")
 
 
 @logger.catch

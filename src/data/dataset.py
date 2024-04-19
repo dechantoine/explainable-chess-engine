@@ -39,7 +39,9 @@ class ChessBoardDataset(Dataset):
         self.board_indices = self.get_boards_indices(include_draws=include_draws)
 
     @logger.catch
-    def get_boards_indices(self, include_draws: bool = False) -> list[tuple[int, int, int]]:
+    def get_boards_indices(self,
+                           include_draws: bool = False,
+                           ) -> list[tuple[int, int, int]]:
         """Get the indices of all the boards in the dataset.
 
         Args:
@@ -52,14 +54,22 @@ class ChessBoardDataset(Dataset):
         for i, file in enumerate(self.list_pgn_files):
             pgn = open(self.root_dir + "/" + file)
             j = -1
+
             while True:
                 game = chess.pgn.read_game(pgn)
                 if game is None:
                     break
                 j += 1
-                if not include_draws and game.headers["Result"] == "1/2-1/2":
+
+                try:
+                    result = result_to_tensor(game.headers["Result"])
+                except ValueError:
                     continue
-                list_board_indices.extend([(i, j, k) for k in range(len(list(game.mainline_moves())))])
+                else:
+                    if not include_draws and result == np.array([0], dtype=np.int8):
+                        continue
+                    list_board_indices.extend([(i, j, k) for k in range(len(list(game.mainline_moves())))])
+
         return list_board_indices
 
     @logger.catch
