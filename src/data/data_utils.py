@@ -117,7 +117,7 @@ def batch_moves_to_tensor(batch_moves: list[list[chess.Move]]) -> np.array:
         list[np.array]: batch of moves tensors.
     """
 
-    return np.array([moves_to_tensor(moves) for moves in tqdm(batch_moves)])
+    return np.array([moves_to_tensor(moves) for moves in batch_moves])
 
 
 @logger.catch
@@ -131,7 +131,7 @@ def batch_boards_to_tensor(batch_boards: list[chess.Board]) -> np.array:
     Returns:
         list[np.array]: batch of board tensors.
     """
-    return np.array([board_to_tensor(board) for board in tqdm(batch_boards)])
+    return np.array([board_to_tensor(board) for board in batch_boards])
 
 
 @logger.catch
@@ -210,4 +210,4 @@ def batch_results_to_tensor(batch_results: list[str]) -> np.array:
     Returns:
         np.array: tensor of game results.
     """
-    return np.array([result_to_tensor(result) for result in tqdm(batch_results)])
+    return np.array([result_to_tensor(result) for result in batch_results])
