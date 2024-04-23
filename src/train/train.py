@@ -21,7 +21,8 @@ if __name__ == "__main__":
     logger.info("Splitting data.")
     train_dataset, test_dataset = train_test_split(dataset=dataset,
                                                    seed=0,
-                                                   train_size=0.90)
+                                                   train_size=0.99,
+                                                   stratify=True)
 
     logger.info(f"Train dataset size: {len(train_dataset)}")
     logger.info(f"Test dataset size: {len(test_dataset)}")

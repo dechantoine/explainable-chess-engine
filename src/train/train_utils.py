@@ -1,7 +1,9 @@
 from src.data.dataset import ChessBoardDataset
+from src.train.viz_utils import plot_bivariate_distributions
 
 from loguru import logger
 import numpy as np
+from sklearn.model_selection import StratifiedShuffleSplit
 import torch
 from torch.utils.tensorboard import SummaryWriter
 from copy import deepcopy
@@ -12,7 +14,8 @@ from tqdm import tqdm
 @logger.catch
 def train_test_split(dataset: ChessBoardDataset,
                      seed: int,
-                     train_size: float) \
+                     train_size: float,
+                     stratify=True) \
         -> (ChessBoardDataset, ChessBoardDataset):
     """Split the provided dataset into a training and testing set.
 
@@ -20,6 +23,7 @@ def train_test_split(dataset: ChessBoardDataset,
         dataset (ChessBoardDataset): Dataset to split.
         seed (int): Seed for the random split.
         train_size (float): Proportion of the training set.
+        stratify (bool): Stratify the split based on the outcomes.
 
     Returns:
         ChessBoardDataset: Training dataset.
@@ -27,9 +31,36 @@ def train_test_split(dataset: ChessBoardDataset,
     """
     np.random.seed(seed)
 
-    indices = np.random.permutation(len(dataset))
-    split = int(train_size * len(dataset))
-    train_indices, test_indices = indices[:split], indices[split:]
+    outcomes = np.zeros(len(dataset))
+    if stratify:
+        board_indices = np.array(dataset.board_indices)
+        len_games = []
+
+        for file_index in np.unique(board_indices[:, 0]):
+            for game_index in np.unique(board_indices[board_indices[:, 0] == file_index, 1]):
+                len_game = max(board_indices[(board_indices[:, 0] == file_index)
+                                             & (board_indices[:, 1] == game_index), 2]) + 1
+                len_games += [len_game] * len_game
+
+        outcomes = np.array([dataset.results[i] *
+                             (dataset.board_indices[i][2] /
+                              len_games[i])
+                             for i in range(len(dataset))])
+
+        # ensure at least one pair for each outcome
+        for i in np.arange(3, -1, -1):
+            outcomes = outcomes.round(decimals=i)
+            _, counts = np.unique(outcomes, return_counts=True)
+            if min(counts) > 1:
+                logger.info(f"Stratification successful with {i} decimals.")
+                break
+
+    sss = StratifiedShuffleSplit(n_splits=1,
+                                 train_size=train_size,
+                                 random_state=seed)
+
+    train_indices, test_indices = next(sss.split(X=np.arange(len(dataset)),
+                                                 y=outcomes))
 
     train_set = deepcopy(dataset)
     test_set = deepcopy(dataset)
@@ -310,7 +341,7 @@ def validation(model: torch.nn.Module,
     eval_scalars["Errors"]["mean_absolute_error"] = np.mean(abs(errors))
     eval_scalars["Errors"]["std_absolute_error"] = np.std(abs(errors))
 
-    return eval_scalars, val_outputs
+    return eval_scalars, val_outputs, val_targets
 
 
 @logger.catch
