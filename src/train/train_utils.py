@@ -60,6 +60,7 @@ def training_step(model: torch.nn.Module,
                   loss: torch.nn.modules.loss._Loss,
                   boards: torch.Tensor,
                   outcomes: torch.Tensor,
+                  gamma: float = 0.99,
                   return_pred: bool = False) -> float or tuple[float, torch.Tensor]:
     """Training step for the model.
 
@@ -69,11 +70,12 @@ def training_step(model: torch.nn.Module,
         loss (torch.nn.modules.loss._Loss): Loss function to use.
         boards (torch.Tensor): Input boards.
         outcomes (torch.Tensor): Outcomes of the games.
+        gamma (float): Discount factor.
         return_pred (bool): Return the predictions.
     """
     optimizer.zero_grad()
     pred = model(boards).reshape(-1)
-    targets = reward_fn(outcome=outcomes, gamma=0.99)
+    targets = reward_fn(outcome=outcomes, gamma=gamma)
     loss_value = loss(pred, targets)
     loss_value.backward()
     optimizer.step()
@@ -88,6 +90,7 @@ def training_step(model: torch.nn.Module,
 def training_loop(model: torch.nn.Module,
                   optimizer: torch.optim.Optimizer,
                   loss: torch.nn.modules.loss._Loss,
+                  gamma: float,
                   train_dataloader: torch.utils.data.DataLoader,
                   test_dataloader: torch.utils.data.DataLoader = None,
                   n_epochs: int = 1,
@@ -102,6 +105,7 @@ def training_loop(model: torch.nn.Module,
         model (torch.nn.Module): Model to train.
         optimizer (torch.optim.optimizer.Optimizer): Optimizer to use.
         loss (torch.nn.modules.loss._Loss): Loss function to use.
+        gamma (float): Discount factor.
         train_dataloader (torch.utils.data.DataLoader): Training dataloader.
         n_epochs (int): Number of epochs.
         device (torch.device): Device to use.
@@ -118,7 +122,9 @@ def training_loop(model: torch.nn.Module,
     log_interval = int(len(train_dataloader) * log_sampling)
     eval_interval = int(len(train_dataloader) * eval_sampling)
 
-    log_testdata(test_dataloader=test_dataloader, writer=writer)
+    log_testdata(test_dataloader=test_dataloader,
+                 gamma=gamma,
+                 writer=writer)
 
     for epoch in tqdm(iterable=range(n_epochs),
                       desc="Epochs", ):
@@ -155,6 +161,7 @@ def training_loop(model: torch.nn.Module,
                          len_trainset=len(train_dataloader),
                          model=model,
                          test_dataloader=test_dataloader,
+                         gamma=gamma,
                          device=device,
                          writer=writer)
 
@@ -164,6 +171,7 @@ def training_loop(model: torch.nn.Module,
                      len_trainset=len(train_dataloader),
                      model=model,
                      test_dataloader=test_dataloader,
+                     gamma=gamma,
                      device=device,
                      writer=writer)
 
@@ -203,6 +211,7 @@ def log_eval(epoch: int,
              len_trainset: int,
              model: torch.nn.Module,
              test_dataloader: torch.utils.data.DataLoader,
+             gamma: float,
              device: torch.device,
              writer: SummaryWriter) -> None:
     """Log the evaluation step.
@@ -213,17 +222,24 @@ def log_eval(epoch: int,
         len_trainset (int): Length of the training set.
         model (torch.nn.Module): Model to evaluate.
         test_dataloader (torch.utils.data.DataLoader): Dataloader for the test set.
+        gamma (float): Discount factor.
         device (torch.device): Device to use.
         writer (SummaryWriter): Writer for the logs.
     """
     if batch_idx == len_trainset:
         logger.info(f"Running eval on the end of epoch {epoch}...")
         global_step = (epoch + 1) * len_trainset
+
+    elif batch_idx == 0 and epoch > 0:
+        return
+
     else:
         logger.info(f"Running eval on epoch {epoch}, batch {batch_idx}...")
         global_step = epoch * len_trainset + batch_idx
 
-    val_metrics, outputs = validation(model=model, test_dataloader=test_dataloader, device=device)
+    val_metrics, outputs = validation(model=model,
+                                      test_dataloader=test_dataloader,
+                                      gamma=gamma, device=device)
 
     for root_tag, metrics in val_metrics.items():
         for key, value in metrics.items():
@@ -240,12 +256,14 @@ def log_eval(epoch: int,
 @logger.catch
 def validation(model: torch.nn.Module,
                test_dataloader: torch.utils.data.DataLoader,
+               gamma: float,
                device: torch.device) -> dict[str, dict[str, float]] and np.array:
     """Validation function for the model.
 
     Args:
         model (torch.nn.Module): Model to validate.
         test_dataloader (torch.utils.data.DataLoader): Dataloader for the validation set.
+        gamma (float): Discount factor.
         device (torch.device): Device to use.
 
     Returns:
@@ -262,7 +280,7 @@ def validation(model: torch.nn.Module,
             boards, moves, outcomes = batch
             boards = boards.to(device)
 
-            targets = reward_fn(outcome=outcomes, gamma=0.99)
+            targets = reward_fn(outcome=outcomes, gamma=gamma)
 
             outputs_nn = model(boards)
             val_targets.extend(targets.cpu().detach().numpy())
@@ -292,11 +310,13 @@ def validation(model: torch.nn.Module,
 
 @logger.catch
 def log_testdata(test_dataloader: torch.utils.data.DataLoader,
+                 gamma: float,
                  writer: SummaryWriter) -> None:
     """Log the test data.
 
     Args:
         test_dataloader (torch.utils.data.DataLoader): Dataloader for the test set.
+        gamma (float): Discount factor.
         writer (SummaryWriter): Writer for the logs.
     """
     logger.info(f"Logging test data...")
@@ -307,7 +327,7 @@ def log_testdata(test_dataloader: torch.utils.data.DataLoader,
         outcomes.extend(outcome)
 
     outcomes = torch.stack(outcomes)
-    rewards = reward_fn(outcomes, gamma=0.99)
+    rewards = reward_fn(outcomes, gamma=gamma)
 
     writer.add_histogram(tag="TestData/rewards_distribution",
                          bins="auto",

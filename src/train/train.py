@@ -49,12 +49,13 @@ if __name__ == "__main__":
     training_loop(model=model,
                   optimizer=optimizer,
                   loss=loss,
+                  gamma=0.999,
                   train_dataloader=train_dataloader,
                   test_dataloader=test_dataloader,
                   n_epochs=10,
                   device="cpu",
                   log_sampling=0.05,
                   eval_sampling=0.25,
-                  run_name="simple_ff")
+                  run_name="simple_ff_3")
 
     #logger.info(prof.key_averages(group_by_input_shape=True).table(sort_by="cpu_time_total", row_limit=10))
