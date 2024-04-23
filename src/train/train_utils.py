@@ -237,9 +237,9 @@ def log_eval(epoch: int,
         logger.info(f"Running eval on epoch {epoch}, batch {batch_idx}...")
         global_step = epoch * len_trainset + batch_idx
 
-    val_metrics, outputs = validation(model=model,
-                                      test_dataloader=test_dataloader,
-                                      gamma=gamma, device=device)
+    val_metrics, outputs, targets = validation(model=model,
+                                               test_dataloader=test_dataloader,
+                                               gamma=gamma, device=device)
 
     for root_tag, metrics in val_metrics.items():
         for key, value in metrics.items():
@@ -251,6 +251,11 @@ def log_eval(epoch: int,
                          bins="auto",
                          values=outputs,
                          global_step=global_step)
+
+    fig = plot_bivariate_distributions(predictions=outputs, targets=targets)
+    writer.add_figure(tag="Distributions/bivariate",
+                      figure=fig,
+                      global_step=global_step)
 
 
 @logger.catch
@@ -267,7 +272,7 @@ def validation(model: torch.nn.Module,
         device (torch.device): Device to use.
 
     Returns:
-        dict[str, dict[str, float]], np.array: Evaluation metrics and outputs.
+        dict[str, dict[str, float]], np.array: Evaluation metrics, outputs and targets.
     """
     model.eval()
     val_targets = []
