@@ -1,3 +1,5 @@
+import numpy as np
+
 from src.data.dataset import ChessBoardDataset
 
 from chess import Board
@@ -22,9 +24,9 @@ class ChessBoardTestCase(unittest.TestCase):
         self.len_moves_tal_no_draws = [60, 127, 59, 45, 128]
         self.len_moves_morphy_no_draws = [61, 35, 0, 33, 46, 45, 21, 45, 29, 41, 91, 39, 56, 39, 109, 27, 47, 28]
 
-    @logger.catch
+
     def test_get_boards_indices(self):
-        indices = self.dataset.get_boards_indices(include_draws=True)
+        indices, results = self.dataset.get_boards_indices(include_draws=True)
         assert isinstance(indices, list)
         assert all(isinstance(x, tuple) for x in indices)
         assert all(len(x) == 3 for x in indices)
@@ -45,7 +47,11 @@ class ChessBoardTestCase(unittest.TestCase):
         assert (all(len([x for x in indices if x[0] == 2 and x[1] == i]) == self.len_moves_morphy[i] for i in range(len(self.len_moves_morphy)))
         )
 
-        indices_no_draws = self.dataset.get_boards_indices(include_draws=False)
+        assert isinstance(results, list)
+        assert all(isinstance(x, np.int8) for x in results)
+        assert len(results) == len(indices)
+
+        indices_no_draws, results_no_draws = self.dataset.get_boards_indices(include_draws=False)
         assert (len([x for x in indices_no_draws if x[0] == 0]) == sum(self.len_moves_najdorf_no_draws))
         assert (len([x for x in indices_no_draws if x[0] == 1]) == sum(self.len_moves_tal_no_draws))
         assert (len([x for x in indices_no_draws if x[0] == 2]) == sum(self.len_moves_morphy_no_draws))
@@ -54,7 +60,7 @@ class ChessBoardTestCase(unittest.TestCase):
         #_, results = self.dataset.__getitems__([indices.index(x) for x in indices_no_draws])
         #assert all(result != "1/2-1/2" for result in results)
 
-    @logger.catch
+
     def test_retrieve_board(self):
         board, move_id, total_moves, result = self.dataset.retrieve_board(2)
         assert isinstance(board, Board)
@@ -62,7 +68,7 @@ class ChessBoardTestCase(unittest.TestCase):
         assert isinstance(total_moves, int)
         assert isinstance(result, str)
 
-    @logger.catch
+
     def test_getitem(self):
         board = self.dataset[0]
         assert isinstance(board, Board)
@@ -92,7 +98,7 @@ class ChessBoardTestCase(unittest.TestCase):
         assert moves.shape == (64, 64)
         assert outcome.shape == (3,)
 
-    @logger.catch
+
     def test_get_items(self):
         boards = self.dataset.__getitems__([0, 1, 2])
         assert isinstance(boards, list)
