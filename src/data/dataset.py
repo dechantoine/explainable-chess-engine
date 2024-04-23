@@ -36,21 +36,22 @@ class ChessBoardDataset(Dataset):
         self.return_moves = return_moves
         self.return_outcome = return_outcome
         self.list_pgn_files = [f for f in os.listdir(self.root_dir) if f.endswith(".pgn")]
-        self.board_indices = self.get_boards_indices(include_draws=include_draws)
+        self.board_indices, self.results = self.get_boards_indices(include_draws=include_draws)
 
     @logger.catch
     def get_boards_indices(self,
                            include_draws: bool = False,
-                           ) -> list[tuple[int, int, int]]:
+                           ) -> list[tuple[int, int, int]] and list[int]:
         """Get the indices of all the boards in the dataset.
 
         Args:
             include_draws (bool): Include draws in the dataset.
 
-        Returns:
-            list[tuple[int, int, int]]: List of tuples containing the file index, game index, and move index.
+        Returns: list[tuple[int, int, int]] and list[int]: List of tuples containing the file index, game index,
+        and move index + List of results.
         """
         list_board_indices = []
+        list_results = []
         for i, file in enumerate(self.list_pgn_files):
             pgn = open(self.root_dir + "/" + file)
             j = -1
@@ -66,11 +67,18 @@ class ChessBoardDataset(Dataset):
                 except ValueError:
                     continue
                 else:
+
                     if not include_draws and result == np.array([0], dtype=np.int8):
                         continue
-                    list_board_indices.extend([(i, j, k) for k in range(len(list(game.mainline_moves())))])
 
-        return list_board_indices
+                    if len(list(game.mainline_moves())) == 1:
+                        logger.warning(f"Game {j} in file {file} has one move, skipping.")
+                        continue
+
+                    list_board_indices.extend([(i, j, k) for k in range(len(list(game.mainline_moves())))])
+                    list_results.extend([result[0] for _ in range(len(list(game.mainline_moves())))])
+
+        return list_board_indices, list_results
 
     @logger.catch
     def retrieve_board(self, idx: int) -> (chess.Board, int, int, str):
