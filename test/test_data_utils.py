@@ -13,15 +13,13 @@ import unittest
 
 
 class DataUtilsTestCase(unittest.TestCase):
-    @logger.catch
+
     def test_format_board(self):
         board = chess.Board()
         board = format_board(board)
         assert isinstance(board, str)
         assert len(board) == 64
 
-
-    @logger.catch
     def test_string_to_array(self):
         board = chess.Board()
         board = format_board(board)
@@ -29,8 +27,6 @@ class DataUtilsTestCase(unittest.TestCase):
         assert isinstance(board, np.ndarray)
         assert board.shape == (6, 8, 8)
 
-
-    @logger.catch
     def test_uci_to_coordinates(self):
         move = chess.Move.from_uci("e2e4")
         coordinates = uci_to_coordinates(move)
@@ -49,8 +45,6 @@ class DataUtilsTestCase(unittest.TestCase):
         assert coordinates[1][0] == 4
         assert coordinates[1][1] == 4
 
-
-    @logger.catch
     def test_moves_to_tensor(self):
         board = chess.Board()
         moves = list(board.legal_moves)
@@ -60,8 +54,6 @@ class DataUtilsTestCase(unittest.TestCase):
         assert tensor.sum() == len(moves)
         assert tensor.dtype == np.int8
 
-
-    @logger.catch
     def test_board_to_tensor(self):
         board = chess.Board()
         tensor = board_to_tensor(board)
@@ -70,8 +62,6 @@ class DataUtilsTestCase(unittest.TestCase):
         assert tensor.sum() == 32
         assert tensor.dtype == np.int8
 
-
-    @logger.catch
     def test_result_to_tensor(self):
         result = "1-0"
         tensor = result_to_tensor(result)
