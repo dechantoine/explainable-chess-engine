@@ -17,6 +17,9 @@ pytest = "^8.1.1"
 snakeviz = "^2.2.0"
 torchvision = "^0.17.2"
 tensorboard = "^2.16.2"
+seaborn = "^0.13.2"
+scikit-learn = "^1.4.2"
+protobuf = "4.25.3"
 
 [tool.pytest.ini_options]
 addopts = [
