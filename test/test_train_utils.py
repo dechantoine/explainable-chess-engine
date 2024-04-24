@@ -18,7 +18,6 @@ class TrainUtilsTestCase(unittest.TestCase):
         self.gamma = 0.99
         self.expected = torch.tensor([0.99 ** 10, 0, -1 * (0.99 ** 30)])
 
-    @logger.catch
     def test_train_test_split(self):
         train_set, test_set = train_test_split(self.dataset, seed=42, train_size=0.8)
 
@@ -31,8 +30,6 @@ class TrainUtilsTestCase(unittest.TestCase):
         self.assertCountEqual(train_set.board_indices + test_set.board_indices,
                               self.dataset.board_indices)
 
-
-    @logger.catch
     def test_reward_fn(self):
         rewards = reward_fn(outcome=self.outcomes, gamma=0.99)
 
