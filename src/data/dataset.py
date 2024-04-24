@@ -1,5 +1,6 @@
 import os
 from typing import Union
+import hashlib
 
 import chess.pgn
 import torch
@@ -37,6 +38,15 @@ class ChessBoardDataset(Dataset):
         self.return_outcome = return_outcome
         self.list_pgn_files = [f for f in os.listdir(self.root_dir) if f.endswith(".pgn")]
         self.board_indices, self.results = self.get_boards_indices(include_draws=include_draws)
+        self.hash = self.get_hash()
+
+
+    @logger.catch
+    def get_hash(self) -> str:
+        """Get the hash of the dataset."""
+        return hashlib.md5(
+            (str(self.list_pgn_files) + str(self.board_indices)).encode()
+        ).hexdigest()
 
     @logger.catch
     def get_boards_indices(self,
