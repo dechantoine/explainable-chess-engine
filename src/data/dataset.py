@@ -70,6 +70,7 @@ class ChessBoardDataset(Dataset):
 
         Returns: list[tuple[int, int, int]] and list[int]: List of tuples containing the file index, game index,
         and move index + List of results.
+
         """
         list_board_indices = []
         list_results = []
@@ -118,6 +119,7 @@ class ChessBoardDataset(Dataset):
             move_id (int): The latest move index in the game.
             total_moves (int): The total number of moves in the game.
             result (str): The result of the game.
+
         """
         file_id, game_id, move_id = self.board_indices[idx]
         file = self.list_pgn_files[file_id]

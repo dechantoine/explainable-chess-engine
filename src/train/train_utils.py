@@ -27,6 +27,7 @@ def train_test_split(
     Returns:
         ChessBoardDataset: Training dataset.
         ChessBoardDataset: Testing dataset.
+
     """
     np.random.seed(seed)
 
@@ -95,6 +96,7 @@ def reward_fn(outcome: torch.Tensor, gamma: float = 0.99) -> torch.Tensor:
 
     Returns:
         tensor: Rewards for the given outcomes.
+
     """
     return torch.Tensor((gamma ** (outcome[:, 1] - outcome[:, 0])) * outcome[:, 2])
 
@@ -116,6 +118,7 @@ def validation(
 
     Returns:
         dict[str, dict[str, float]], np.array: Evaluation metrics, outputs and targets.
+
     """
     model.eval()
     val_targets = []
@@ -178,6 +181,7 @@ def training_step(
         outcomes (torch.Tensor): Outcomes of the games.
         gamma (float): Discount factor.
         return_pred (bool): Return the predictions.
+
     """
     optimizer.zero_grad()
     pred = model(boards).reshape(-1)
@@ -220,6 +224,7 @@ def training_loop(
         log_sampling (float): Sampling rate for logging.
         eval_sampling (float): Sampling rate for evaluation.
         run_name (str): Name of the run.
+
     """
     model.to(device)
     model.train()
@@ -320,6 +325,7 @@ def log_train(
         len_trainset (int): Length of the training set.
         log_interval (int): Interval for logging.
         writer (SummaryWriter): Writer for the logs.
+
     """
     if batch_idx == 0:
         running_loss = running_loss
@@ -363,6 +369,7 @@ def log_eval(
         device (torch.device): Device to use.
         writer (SummaryWriter): Writer for the logs.
         run_name (str): Name of the run.
+
     """
     if batch_idx == len(train_dataloader):
         logger.info(f"Running eval on the end of epoch {epoch}...")
@@ -445,6 +452,7 @@ def log_testdata(
         test_dataloader (torch.utils.data.DataLoader): Dataloader for the test set.
         gamma (float): Discount factor.
         writer (SummaryWriter): Writer for the logs.
+
     """
     logger.info("Logging test data...")
 

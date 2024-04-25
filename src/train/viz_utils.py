@@ -6,8 +6,7 @@ import seaborn as sns
 def plot_bivariate_distributions(
     predictions: np.array, targets: np.array
 ) -> plt.Figure:
-    """
-    Plot bivariate distributions of predictions and targets
+    """Plot bivariate distributions of predictions and targets.
 
     Args:
         predictions: np.array, predictions
@@ -15,6 +14,7 @@ def plot_bivariate_distributions(
 
     Returns:
         fig: plt.Figure, figure of the plot
+
     """
     sns.set_theme(style="darkgrid")
 
