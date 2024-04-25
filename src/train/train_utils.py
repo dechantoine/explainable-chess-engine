@@ -361,9 +361,12 @@ def log_eval(epoch: int,
     hparams = {
         "model": model.__class__.__name__,
         "optimizer": optimizer.__class__.__name__,
-        "lr": optimizer.state_dict()["param_groups"][0]["lr"],
-        "lr_decay": optimizer.state_dict()["param_groups"][0]["lr_decay"],
-        "weight_decay": optimizer.state_dict()["param_groups"][0]["weight_decay"],
+        "lr": optimizer.state_dict()["param_groups"][0]["lr"]
+        if "lr" in optimizer.state_dict()["param_groups"][0] else None,
+        "lr_decay": optimizer.state_dict()["param_groups"][0]["lr_decay"]
+        if "lr_decay" in optimizer.state_dict()["param_groups"][0] else None,
+        "weight_decay": optimizer.state_dict()["param_groups"][0]["weight_decay"]
+        if "weight_decay" in optimizer.state_dict()["param_groups"][0] else None,
         "loss": loss.__class__.__name__,
         "gamma": gamma,
         "n_epochs": n_epochs,
