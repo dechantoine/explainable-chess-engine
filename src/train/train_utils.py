@@ -1,13 +1,13 @@
 from src.data.dataset import ChessBoardDataset
 from src.train.viz_utils import plot_bivariate_distributions
 
+from copy import deepcopy
 from loguru import logger
 import numpy as np
+import os
 from sklearn.model_selection import StratifiedShuffleSplit
 import torch
 from torch.utils.tensorboard import SummaryWriter
-from copy import deepcopy
-import os
 
 from tqdm import tqdm
 
@@ -257,7 +257,8 @@ def training_loop(model: torch.nn.Module,
                          gamma=gamma,
                          n_epochs=n_epochs,
                          device=device,
-                         writer=writer)
+                         writer=writer,
+                         run_name=run_name)
 
         if test_dataloader is not None:
             log_eval(epoch=epoch,
@@ -270,7 +271,8 @@ def training_loop(model: torch.nn.Module,
                      gamma=gamma,
                      n_epochs=n_epochs,
                      device=device,
-                     writer=writer)
+                     writer=writer,
+                     run_name=run_name)
 
     writer.close()
 
@@ -313,7 +315,8 @@ def log_eval(epoch: int,
              gamma: float,
              n_epochs: int,
              device: torch.device,
-             writer: SummaryWriter) -> None:
+             writer: SummaryWriter,
+             run_name: str) -> None:
     """Log the evaluation step.
 
     Args:
@@ -328,6 +331,7 @@ def log_eval(epoch: int,
         n_epochs (int): Number of epochs.
         device (torch.device): Device to use.
         writer (SummaryWriter): Writer for the logs.
+        run_name (str): Name of the run.
     """
     if batch_idx == len(train_dataloader):
         logger.info(f"Running eval on the end of epoch {epoch}...")
@@ -358,6 +362,8 @@ def log_eval(epoch: int,
         "model": model.__class__.__name__,
         "optimizer": optimizer.__class__.__name__,
         "lr": optimizer.state_dict()["param_groups"][0]["lr"],
+        "lr_decay": optimizer.state_dict()["param_groups"][0]["lr_decay"],
+        "weight_decay": optimizer.state_dict()["param_groups"][0]["weight_decay"],
         "loss": loss.__class__.__name__,
         "gamma": gamma,
         "n_epochs": n_epochs,
@@ -372,6 +378,15 @@ def log_eval(epoch: int,
                        global_step=global_step)
 
     writer.close()
+
+    if not os.path.exists(f"./models_checkpoint/{run_name}"):
+        os.makedirs(f"./models_checkpoint/{run_name}")
+
+    torch.save(obj={"model_state_dict": model.state_dict(),
+                    "epoch": epoch,
+                    "optimizer_state_dict": optimizer.state_dict(),
+                    "loss": loss,},
+               f=f"./models_checkpoint/{run_name}/checkpoint_{global_step}.pt")
 
 
 @logger.catch
