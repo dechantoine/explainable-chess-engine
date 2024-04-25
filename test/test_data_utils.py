@@ -1,19 +1,19 @@
-from src.data.data_utils import (format_board,
-                                 string_to_array,
-                                 uci_to_coordinates,
-                                 moves_to_tensor,
-                                 board_to_tensor,
-                                 result_to_tensor)
-import chess
-
-import numpy as np
-from loguru import logger
-
 import unittest
+
+import chess
+import numpy as np
+
+from src.data.data_utils import (
+    board_to_tensor,
+    format_board,
+    moves_to_tensor,
+    result_to_tensor,
+    string_to_array,
+    uci_to_coordinates,
+)
 
 
 class DataUtilsTestCase(unittest.TestCase):
-
     def test_format_board(self):
         board = chess.Board()
         board = format_board(board)

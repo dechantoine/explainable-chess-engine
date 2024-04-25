@@ -1,35 +1,37 @@
-from src.data.dataset import ChessBoardDataset
-
 import os
-from loguru import logger
 from cProfile import Profile
 from pstats import SortKey, Stats
 
+from loguru import logger
 
-class ChessBoardProfiling():
+from src.data.dataset import ChessBoardDataset
 
+
+class ChessBoardProfiling:
     def __init__(self):
-        self.dataset = ChessBoardDataset(root_dir="../test/test_data",
-                                         return_moves=True,
-                                         return_outcome=True,
-                                         transform=True,
-                                         include_draws=False)
+        self.dataset = ChessBoardDataset(
+            root_dir="../test/test_data",
+            return_moves=True,
+            return_outcome=True,
+            transform=True,
+            include_draws=False,
+        )
         self.n_test = 100
 
     @logger.catch
     def get_boards_indices(self):
         for i in range(self.n_test):
-            indices = self.dataset.get_boards_indices(include_draws=True)
+            _ = self.dataset.get_boards_indices(include_draws=True)
 
     @logger.catch
     def retrieve_board(self):
         for i in range(self.n_test):
-            board, move_id, total_moves, result = self.dataset.retrieve_board(0)
+            _, _, _, _ = self.dataset.retrieve_board(0)
 
     @logger.catch
     def getitems(self):
         for i in range(self.n_test):
-            boards, moves, outcomes = self.dataset.__getitems__(list(range(64)))
+            _, _, _ = self.dataset.__getitems__(list(range(64)))
 
 
 if __name__ == "__main__":

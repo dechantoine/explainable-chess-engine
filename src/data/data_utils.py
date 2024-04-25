@@ -1,20 +1,25 @@
+import chess.pgn
 import numpy as np
 from loguru import logger
-from tqdm import tqdm
-import chess.pgn
 
-dict_pieces = {"white": {"R": "rook",
-                         "N": "knight",
-                         "B": "bishop",
-                         "Q": "queen",
-                         "K": "king",
-                         "P": "pawn"},
-               "black": {"r": "rook",
-                         "n": "knight",
-                         "b": "bishop",
-                         "q": "queen",
-                         "k": "king",
-                         "p": "pawn"}}
+dict_pieces = {
+    "white": {
+        "R": "rook",
+        "N": "knight",
+        "B": "bishop",
+        "Q": "queen",
+        "K": "king",
+        "P": "pawn",
+    },
+    "black": {
+        "r": "rook",
+        "n": "knight",
+        "b": "bishop",
+        "q": "queen",
+        "k": "king",
+        "p": "pawn",
+    },
+}
 
 
 @logger.catch
@@ -47,9 +52,12 @@ def string_to_array(str_board: str, is_white: bool = True) -> np.array:
     """
     list_board = list(str_board)
     key = "white" if is_white else "black"
-    return np.array([np.reshape([1 * (p == piece) for p in list_board],
-                                newshape=(8, 8))
-                     for piece in list(dict_pieces[key])])
+    return np.array(
+        [
+            np.reshape([1 * (p == piece) for p in list_board], newshape=(8, 8))
+            for piece in list(dict_pieces[key])
+        ]
+    )
 
 
 # TODO: test for castling !
@@ -64,8 +72,10 @@ def uci_to_coordinates(move: chess.Move) -> tuple:
     Returns:
         tuple: coordinates of the origin square and coordinates of the destination square.
     """
-    return (7 - move.from_square // 8, move.from_square % 8), \
-        (7 - move.to_square // 8, move.to_square % 8)
+    return (7 - move.from_square // 8, move.from_square % 8), (
+        7 - move.to_square // 8,
+        move.to_square % 8,
+    )
 
 
 @logger.catch
@@ -83,8 +93,10 @@ def moves_to_tensor(moves: list[chess.Move]) -> np.array:
     moves_tensor = np.zeros(shape=(8 * 8, 8 * 8), dtype=np.int8)
     for move in moves:
         from_coordinates, to_coordinates = uci_to_coordinates(move)
-        moves_tensor[from_coordinates[0] * 8 + from_coordinates[1],
-                     to_coordinates[0] * 8 + to_coordinates[1]] = 1
+        moves_tensor[
+            from_coordinates[0] * 8 + from_coordinates[1],
+            to_coordinates[0] * 8 + to_coordinates[1],
+        ] = 1
     return moves_tensor
 
 
@@ -99,10 +111,14 @@ def board_to_tensor(board: chess.Board) -> np.array:
     Returns:
         np.array: board tensor.
     """
-    return np.concatenate((string_to_array(format_board(board)),
-                           string_to_array(format_board(board), is_white=False)),
-                          axis=0,
-                          dtype=np.int8)
+    return np.concatenate(
+        (
+            string_to_array(format_board(board)),
+            string_to_array(format_board(board), is_white=False),
+        ),
+        axis=0,
+        dtype=np.int8,
+    )
 
 
 @logger.catch
@@ -151,7 +167,9 @@ def game_to_legal_moves_tensor(game: chess.pgn.Game) -> np.array:
     for move in game.mainline_moves():
         board.push(move)
         boards.append(board.copy())
-    legal_moves_tensors = batch_moves_to_tensor([list(board.legal_moves) for board in boards])
+    legal_moves_tensors = batch_moves_to_tensor(
+        [list(board.legal_moves) for board in boards]
+    )
     return np.array(legal_moves_tensors)
 
 

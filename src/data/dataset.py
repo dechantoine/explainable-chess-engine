@@ -1,29 +1,36 @@
+import hashlib
 import os
 from typing import Union
-import hashlib
 
 import chess.pgn
+import numpy as np
 import torch
+from loguru import logger
 from torch import Tensor
 from torch.utils.data import Dataset
-import numpy as np
 
-from src.data.data_utils import (board_to_tensor, moves_to_tensor, result_to_tensor,
-                                 batch_boards_to_tensor, batch_moves_to_tensor, batch_results_to_tensor)
-from loguru import logger
+from src.data.data_utils import (
+    batch_boards_to_tensor,
+    batch_moves_to_tensor,
+    batch_results_to_tensor,
+    board_to_tensor,
+    moves_to_tensor,
+    result_to_tensor,
+)
 
 
 class ChessBoardDataset(Dataset):
     """Chess boards with legal moves dataset."""
 
     @logger.catch
-    def __init__(self,
-                 root_dir: str,
-                 return_moves: bool = False,
-                 return_outcome: bool = False,
-                 transform: bool = False,
-                 include_draws: bool = False
-                 ):
+    def __init__(
+        self,
+        root_dir: str,
+        return_moves: bool = False,
+        return_outcome: bool = False,
+        transform: bool = False,
+        include_draws: bool = False,
+    ):
         """
         Arguments:
             root_dir (string): Directory with all the PGNs.
@@ -36,10 +43,13 @@ class ChessBoardDataset(Dataset):
         self.transform = transform
         self.return_moves = return_moves
         self.return_outcome = return_outcome
-        self.list_pgn_files = [f for f in os.listdir(self.root_dir) if f.endswith(".pgn")]
-        self.board_indices, self.results = self.get_boards_indices(include_draws=include_draws)
+        self.list_pgn_files = [
+            f for f in os.listdir(self.root_dir) if f.endswith(".pgn")
+        ]
+        self.board_indices, self.results = self.get_boards_indices(
+            include_draws=include_draws
+        )
         self.hash = self.get_hash()
-
 
     @logger.catch
     def get_hash(self) -> str:
@@ -49,9 +59,10 @@ class ChessBoardDataset(Dataset):
         ).hexdigest()
 
     @logger.catch
-    def get_boards_indices(self,
-                           include_draws: bool = False,
-                           ) -> list[tuple[int, int, int]] and list[int]:
+    def get_boards_indices(
+        self,
+        include_draws: bool = False,
+    ) -> list[tuple[int, int, int]] and list[int]:
         """Get the indices of all the boards in the dataset.
 
         Args:
@@ -77,16 +88,21 @@ class ChessBoardDataset(Dataset):
                 except ValueError:
                     continue
                 else:
-
                     if not include_draws and result == np.array([0], dtype=np.int8):
                         continue
 
                     if len(list(game.mainline_moves())) == 1:
-                        logger.warning(f"Game {j} in file {file} has one move, skipping.")
+                        logger.warning(
+                            f"Game {j} in file {file} has one move, skipping."
+                        )
                         continue
 
-                    list_board_indices.extend([(i, j, k) for k in range(len(list(game.mainline_moves())))])
-                    list_results.extend([result[0] for _ in range(len(list(game.mainline_moves())))])
+                    list_board_indices.extend(
+                        [(i, j, k) for k in range(len(list(game.mainline_moves())))]
+                    )
+                    list_results.extend(
+                        [result[0] for _ in range(len(list(game.mainline_moves())))]
+                    )
 
         return list_board_indices, list_results
 
@@ -129,16 +145,18 @@ class ChessBoardDataset(Dataset):
 
         board_sample, move_id, game_len, game_result = self.retrieve_board(idx)
         legal_moves_sample = list(board_sample.legal_moves)
-        outcome = {"move_id": move_id,
-                   "game_length": game_len,
-                   "game_result": game_result}
+        outcome = {
+            "move_id": move_id,
+            "game_length": game_len,
+            "game_result": game_result,
+        }
 
         if self.transform:
             board_sample = torch.from_numpy(board_to_tensor(board_sample))
             legal_moves_sample = torch.from_numpy(moves_to_tensor(legal_moves_sample))
-            outcome = torch.tensor([move_id,
-                                    game_len,
-                                    result_to_tensor(game_result)[0]])
+            outcome = torch.tensor(
+                [move_id, game_len, result_to_tensor(game_result)[0]]
+            )
 
         if self.return_moves and self.return_outcome:
             return board_sample, legal_moves_sample, outcome
@@ -163,26 +181,30 @@ class ChessBoardDataset(Dataset):
         for i in indices:
             board_sample, move_id, game_len, game_result = self.retrieve_board(i)
             legal_moves_sample = list(board_sample.legal_moves)
-            outcome = {"move_id": move_id,
-                       "game_length": game_len,
-                       "game_result": game_result}
+            outcome = {
+                "move_id": move_id,
+                "game_length": game_len,
+                "game_result": game_result,
+            }
 
             board_samples.append(board_sample)
             legal_moves_samples.append(legal_moves_sample)
             outcomes.append(outcome)
 
         if self.transform:
-            #logger.info("Transforming the boards to tensors...")
+            # logger.info("Transforming the boards to tensors...")
             board_samples = torch.from_numpy(batch_boards_to_tensor(board_samples))
-            #logger.info("Transforming the legal moves to tensors...")
-            legal_moves_samples = torch.from_numpy(batch_moves_to_tensor(legal_moves_samples))
+            # logger.info("Transforming the legal moves to tensors...")
+            legal_moves_samples = torch.from_numpy(
+                batch_moves_to_tensor(legal_moves_samples)
+            )
             moves_ids = np.array([outcome["move_id"] for outcome in outcomes])
             game_lens = np.array([outcome["game_length"] for outcome in outcomes])
-            #logger.info("Transforming the outcomes to tensors...")
-            game_results = batch_results_to_tensor([outcome["game_result"] for outcome in outcomes]).flatten()
-            outcomes = torch.tensor(np.array([moves_ids,
-                                              game_lens,
-                                              game_results]).T)
+            # logger.info("Transforming the outcomes to tensors...")
+            game_results = batch_results_to_tensor(
+                [outcome["game_result"] for outcome in outcomes]
+            ).flatten()
+            outcomes = torch.tensor(np.array([moves_ids, game_lens, game_results]).T)
 
         if self.return_moves and self.return_outcome:
             return board_samples, legal_moves_samples, outcomes

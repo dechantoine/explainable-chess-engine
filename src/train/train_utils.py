@@ -1,23 +1,21 @@
+import os
+from copy import deepcopy
+
+import numpy as np
+import torch
+from loguru import logger
+from sklearn.model_selection import StratifiedShuffleSplit
+from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
+
 from src.data.dataset import ChessBoardDataset
 from src.train.viz_utils import plot_bivariate_distributions
 
-from copy import deepcopy
-from loguru import logger
-import numpy as np
-import os
-from sklearn.model_selection import StratifiedShuffleSplit
-import torch
-from torch.utils.tensorboard import SummaryWriter
-
-from tqdm import tqdm
-
 
 @logger.catch
-def train_test_split(dataset: ChessBoardDataset,
-                     seed: int,
-                     train_size: float,
-                     stratify=True) \
-        -> (ChessBoardDataset, ChessBoardDataset):
+def train_test_split(
+    dataset: ChessBoardDataset, seed: int, train_size: float, stratify=True
+) -> (ChessBoardDataset, ChessBoardDataset):
     """Split the provided dataset into a training and testing set.
 
     Args:
@@ -38,15 +36,27 @@ def train_test_split(dataset: ChessBoardDataset,
         len_games = []
 
         for file_index in np.unique(board_indices[:, 0]):
-            for game_index in np.unique(board_indices[board_indices[:, 0] == file_index, 1]):
-                len_game = max(board_indices[(board_indices[:, 0] == file_index)
-                                             & (board_indices[:, 1] == game_index), 2]) + 1
+            for game_index in np.unique(
+                board_indices[board_indices[:, 0] == file_index, 1]
+            ):
+                len_game = (
+                    max(
+                        board_indices[
+                            (board_indices[:, 0] == file_index)
+                            & (board_indices[:, 1] == game_index),
+                            2,
+                        ]
+                    )
+                    + 1
+                )
                 len_games += [len_game] * len_game
 
-        outcomes = np.array([dataset.results[i] *
-                             (dataset.board_indices[i][2] /
-                              len_games[i])
-                             for i in range(len(dataset))])
+        outcomes = np.array(
+            [
+                dataset.results[i] * (dataset.board_indices[i][2] / len_games[i])
+                for i in range(len(dataset))
+            ]
+        )
 
         # ensure at least one pair for each outcome
         for i in np.arange(3, -1, -1):
@@ -56,12 +66,9 @@ def train_test_split(dataset: ChessBoardDataset,
                 logger.info(f"Stratification successful with {i} decimals.")
                 break
 
-    sss = StratifiedShuffleSplit(n_splits=1,
-                                 train_size=train_size,
-                                 random_state=seed)
+    sss = StratifiedShuffleSplit(n_splits=1, train_size=train_size, random_state=seed)
 
-    train_indices, test_indices = next(sss.split(X=np.arange(len(dataset)),
-                                                 y=outcomes))
+    train_indices, test_indices = next(sss.split(X=np.arange(len(dataset)), y=outcomes))
 
     train_set = deepcopy(dataset)
     test_set = deepcopy(dataset)
@@ -93,10 +100,12 @@ def reward_fn(outcome: torch.Tensor, gamma: float = 0.99) -> torch.Tensor:
 
 
 @logger.catch
-def validation(model: torch.nn.Module,
-               test_dataloader: torch.utils.data.DataLoader,
-               gamma: float,
-               device: torch.device) -> dict[str, dict[str, float]] and np.array:
+def validation(
+    model: torch.nn.Module,
+    test_dataloader: torch.utils.data.DataLoader,
+    gamma: float,
+    device: torch.device,
+) -> dict[str, dict[str, float]] and np.array:
     """Validation function for the model.
 
     Args:
@@ -113,9 +122,11 @@ def validation(model: torch.nn.Module,
     val_outputs = []
 
     with torch.no_grad():
-        for i, batch in tqdm(iterable=enumerate(test_dataloader, 0),
-                             desc="Validation batches",
-                             total=len(test_dataloader)):
+        for i, batch in tqdm(
+            iterable=enumerate(test_dataloader, 0),
+            desc="Validation batches",
+            total=len(test_dataloader),
+        ):
             boards, moves, outcomes = batch
             boards = boards.to(device)
 
@@ -130,9 +141,11 @@ def validation(model: torch.nn.Module,
 
     eval_scalars = {}
     errors = (val_targets - val_outputs).flatten()
-    squared_errors = errors ** 2
+    squared_errors = errors**2
 
-    eval_scalars["Distributions/mean_pred_%"] = np.mean(val_outputs) / np.mean(val_targets)
+    eval_scalars["Distributions/mean_pred_%"] = np.mean(val_outputs) / np.mean(
+        val_targets
+    )
     eval_scalars["Distributions/std_pred_%"] = np.std(val_outputs) / np.std(val_targets)
 
     eval_scalars["Errors/mean_error"] = np.mean(errors)
@@ -146,13 +159,15 @@ def validation(model: torch.nn.Module,
 
 
 @logger.catch
-def training_step(model: torch.nn.Module,
-                  optimizer: torch.optim.Optimizer,
-                  loss: torch.nn.modules.loss._Loss,
-                  boards: torch.Tensor,
-                  outcomes: torch.Tensor,
-                  gamma: float = 0.99,
-                  return_pred: bool = False) -> float or tuple[float, torch.Tensor]:
+def training_step(
+    model: torch.nn.Module,
+    optimizer: torch.optim.Optimizer,
+    loss: torch.nn.modules.loss._Loss,
+    boards: torch.Tensor,
+    outcomes: torch.Tensor,
+    gamma: float = 0.99,
+    return_pred: bool = False,
+) -> float or tuple[float, torch.Tensor]:
     """Training step for the model.
 
     Args:
@@ -178,18 +193,19 @@ def training_step(model: torch.nn.Module,
 
 
 @logger.catch
-def training_loop(model: torch.nn.Module,
-                  optimizer: torch.optim.Optimizer,
-                  loss: torch.nn.modules.loss._Loss,
-                  gamma: float,
-                  train_dataloader: torch.utils.data.DataLoader,
-                  test_dataloader: torch.utils.data.DataLoader = None,
-                  n_epochs: int = 1,
-                  device: torch.device = torch.device("cpu"),
-                  log_sampling: float = 0.1,
-                  eval_sampling: float = 1,
-                  run_name: str = "default"
-                  ) -> None:
+def training_loop(
+    model: torch.nn.Module,
+    optimizer: torch.optim.Optimizer,
+    loss: torch.nn.modules.loss._Loss,
+    gamma: float,
+    train_dataloader: torch.utils.data.DataLoader,
+    test_dataloader: torch.utils.data.DataLoader = None,
+    n_epochs: int = 1,
+    device: torch.device = torch.device("cpu"),
+    log_sampling: float = 0.1,
+    eval_sampling: float = 1,
+    run_name: str = "default",
+) -> None:
     """Training loop for the model.
 
     Args:
@@ -213,77 +229,88 @@ def training_loop(model: torch.nn.Module,
     log_interval = int(len(train_dataloader) * log_sampling)
     eval_interval = int(len(train_dataloader) * eval_sampling)
 
-    log_testdata(test_dataloader=test_dataloader,
-                 gamma=gamma,
-                 writer=writer)
+    log_testdata(test_dataloader=test_dataloader, gamma=gamma, writer=writer)
 
-    for epoch in tqdm(iterable=range(n_epochs),
-                      desc="Epochs", ):
+    for epoch in tqdm(
+        iterable=range(n_epochs),
+        desc="Epochs",
+    ):
         running_loss = 0.0
 
-        for batch_idx, batch in tqdm(iterable=enumerate(train_dataloader),
-                                     desc="Batches",
-                                     total=len(train_dataloader)):
-
+        for batch_idx, batch in tqdm(
+            iterable=enumerate(train_dataloader),
+            desc="Batches",
+            total=len(train_dataloader),
+        ):
             boards, moves, outcomes = batch
             boards = boards.to(device)
             outcomes = outcomes.to(device)
 
-            loss_value = training_step(model=model,
-                                       optimizer=optimizer,
-                                       loss=loss,
-                                       boards=boards,
-                                       outcomes=outcomes)
+            loss_value = training_step(
+                model=model,
+                optimizer=optimizer,
+                loss=loss,
+                boards=boards,
+                outcomes=outcomes,
+            )
 
             running_loss += loss_value
 
             if batch_idx % log_interval == 0:
-                log_train(epoch=epoch,
-                          batch_idx=batch_idx,
-                          running_loss=running_loss,
-                          len_trainset=len(train_dataloader),
-                          log_interval=log_interval,
-                          writer=writer)
+                log_train(
+                    epoch=epoch,
+                    batch_idx=batch_idx,
+                    running_loss=running_loss,
+                    len_trainset=len(train_dataloader),
+                    log_interval=log_interval,
+                    writer=writer,
+                )
                 running_loss = 0.0
 
             if batch_idx % eval_interval == 0 and test_dataloader is not None:
-                log_eval(epoch=epoch,
-                         batch_idx=batch_idx,
-                         model=model,
-                         optimizer=optimizer,
-                         loss=loss,
-                         train_dataloader=train_dataloader,
-                         test_dataloader=test_dataloader,
-                         gamma=gamma,
-                         n_epochs=n_epochs,
-                         device=device,
-                         writer=writer,
-                         run_name=run_name)
+                log_eval(
+                    epoch=epoch,
+                    batch_idx=batch_idx,
+                    model=model,
+                    optimizer=optimizer,
+                    loss=loss,
+                    train_dataloader=train_dataloader,
+                    test_dataloader=test_dataloader,
+                    gamma=gamma,
+                    n_epochs=n_epochs,
+                    device=device,
+                    writer=writer,
+                    run_name=run_name,
+                )
 
         if test_dataloader is not None:
-            log_eval(epoch=epoch,
-                     batch_idx=len(train_dataloader),
-                     model=model,
-                     optimizer=optimizer,
-                     loss=loss,
-                     train_dataloader=train_dataloader,
-                     test_dataloader=test_dataloader,
-                     gamma=gamma,
-                     n_epochs=n_epochs,
-                     device=device,
-                     writer=writer,
-                     run_name=run_name)
+            log_eval(
+                epoch=epoch,
+                batch_idx=len(train_dataloader),
+                model=model,
+                optimizer=optimizer,
+                loss=loss,
+                train_dataloader=train_dataloader,
+                test_dataloader=test_dataloader,
+                gamma=gamma,
+                n_epochs=n_epochs,
+                device=device,
+                writer=writer,
+                run_name=run_name,
+            )
 
     writer.close()
 
 
 @logger.catch
-def log_train(epoch: int,
-              batch_idx: int,
-              running_loss: float,
-              len_trainset: int,
-              log_interval: int,
-              writer: SummaryWriter) -> None:
+def log_train(
+    epoch: int,
+    batch_idx: int,
+    running_loss: float,
+    len_trainset: int,
+    log_interval: int,
+    writer: SummaryWriter,
+) -> None:
     """Log the training step.
 
     Args:
@@ -298,25 +325,29 @@ def log_train(epoch: int,
         running_loss = running_loss
     else:
         running_loss = running_loss / log_interval
-    writer.add_scalar(tag="Training/loss",
-                      scalar_value=running_loss,
-                      global_step=epoch * len_trainset + batch_idx)
+    writer.add_scalar(
+        tag="Training/loss",
+        scalar_value=running_loss,
+        global_step=epoch * len_trainset + batch_idx,
+    )
     logger.info(f"Epoch {epoch}, batch {batch_idx}, loss: {running_loss}")
 
 
 @logger.catch
-def log_eval(epoch: int,
-             batch_idx: int,
-             model: torch.nn.Module,
-             optimizer: torch.optim.Optimizer,
-             loss: torch.nn.modules.loss._Loss,
-             train_dataloader: torch.utils.data.DataLoader,
-             test_dataloader: torch.utils.data.DataLoader,
-             gamma: float,
-             n_epochs: int,
-             device: torch.device,
-             writer: SummaryWriter,
-             run_name: str) -> None:
+def log_eval(
+    epoch: int,
+    batch_idx: int,
+    model: torch.nn.Module,
+    optimizer: torch.optim.Optimizer,
+    loss: torch.nn.modules.loss._Loss,
+    train_dataloader: torch.utils.data.DataLoader,
+    test_dataloader: torch.utils.data.DataLoader,
+    gamma: float,
+    n_epochs: int,
+    device: torch.device,
+    writer: SummaryWriter,
+    run_name: str,
+) -> None:
     """Log the evaluation step.
 
     Args:
@@ -344,29 +375,35 @@ def log_eval(epoch: int,
         logger.info(f"Running eval on epoch {epoch}, batch {batch_idx}...")
         global_step = epoch * len(train_dataloader) + batch_idx
 
-    val_metrics, outputs, targets = validation(model=model,
-                                               test_dataloader=test_dataloader,
-                                               gamma=gamma, device=device)
+    val_metrics, outputs, targets = validation(
+        model=model, test_dataloader=test_dataloader, gamma=gamma, device=device
+    )
 
-    writer.add_histogram(tag="Distributions/outputs",
-                         bins="auto",
-                         values=outputs,
-                         global_step=global_step)
+    writer.add_histogram(
+        tag="Distributions/outputs",
+        bins="auto",
+        values=outputs,
+        global_step=global_step,
+    )
 
     fig = plot_bivariate_distributions(predictions=outputs, targets=targets)
-    writer.add_figure(tag="Distributions/bivariate",
-                      figure=fig,
-                      global_step=global_step)
+    writer.add_figure(
+        tag="Distributions/bivariate", figure=fig, global_step=global_step
+    )
 
     hparams = {
         "model": model.__class__.__name__,
+        "model_hash": model.model_hash(),
         "optimizer": optimizer.__class__.__name__,
         "lr": optimizer.state_dict()["param_groups"][0]["lr"]
-        if "lr" in optimizer.state_dict()["param_groups"][0] else None,
+        if "lr" in optimizer.state_dict()["param_groups"][0]
+        else None,
         "lr_decay": optimizer.state_dict()["param_groups"][0]["lr_decay"]
-        if "lr_decay" in optimizer.state_dict()["param_groups"][0] else None,
+        if "lr_decay" in optimizer.state_dict()["param_groups"][0]
+        else None,
         "weight_decay": optimizer.state_dict()["param_groups"][0]["weight_decay"]
-        if "weight_decay" in optimizer.state_dict()["param_groups"][0] else None,
+        if "weight_decay" in optimizer.state_dict()["param_groups"][0]
+        else None,
         "loss": loss.__class__.__name__,
         "gamma": gamma,
         "n_epochs": n_epochs,
@@ -375,27 +412,33 @@ def log_eval(epoch: int,
         "test_dataset_hash": test_dataloader.dataset.hash,
     }
 
-    writer.add_hparams(hparam_dict=hparams,
-                       metric_dict=val_metrics,
-                       run_name=".",
-                       global_step=global_step)
+    writer.add_hparams(
+        hparam_dict=hparams,
+        metric_dict=val_metrics,
+        run_name=".",
+        global_step=global_step,
+    )
 
     writer.close()
 
     if not os.path.exists(f"./models_checkpoint/{run_name}"):
         os.makedirs(f"./models_checkpoint/{run_name}")
 
-    torch.save(obj={"model_state_dict": model.state_dict(),
-                    "epoch": epoch,
-                    "optimizer_state_dict": optimizer.state_dict(),
-                    "loss": loss,},
-               f=f"./models_checkpoint/{run_name}/checkpoint_{global_step}.pt")
+    torch.save(
+        obj={
+            "model_state_dict": model.state_dict(),
+            "epoch": epoch,
+            "optimizer_state_dict": optimizer.state_dict(),
+            "loss": loss,
+        },
+        f=f"./models_checkpoint/{run_name}/checkpoint_{global_step}.pt",
+    )
 
 
 @logger.catch
-def log_testdata(test_dataloader: torch.utils.data.DataLoader,
-                 gamma: float,
-                 writer: SummaryWriter) -> None:
+def log_testdata(
+    test_dataloader: torch.utils.data.DataLoader, gamma: float, writer: SummaryWriter
+) -> None:
     """Log the test data.
 
     Args:
@@ -403,7 +446,7 @@ def log_testdata(test_dataloader: torch.utils.data.DataLoader,
         gamma (float): Discount factor.
         writer (SummaryWriter): Writer for the logs.
     """
-    logger.info(f"Logging test data...")
+    logger.info("Logging test data...")
 
     outcomes = []
     for i, batch in enumerate(test_dataloader):
@@ -413,7 +456,6 @@ def log_testdata(test_dataloader: torch.utils.data.DataLoader,
     outcomes = torch.stack(outcomes)
     rewards = reward_fn(outcomes, gamma=gamma)
 
-    writer.add_histogram(tag="TestData/rewards_distribution",
-                         bins="auto",
-                         values=rewards,
-                         global_step=0)
+    writer.add_histogram(
+        tag="TestData/rewards_distribution", bins="auto", values=rewards, global_step=0
+    )
