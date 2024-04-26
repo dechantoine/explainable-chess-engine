@@ -7,6 +7,17 @@ from src.data.dataset import ChessBoardDataset
 from src.models.simple_feed_forward import SimpleFF
 from src.train.train_utils import train_test_split, training_loop
 
+
+def collate_fn(x):
+    """Collate function for the DataLoader.
+
+    Used to avoid using lambda function, thus allowing for
+    multiprocessing.
+
+    """
+    return x
+
+
 if __name__ == "__main__":
     logger.info("Loading data.")
     dataset = ChessBoardDataset(
@@ -27,11 +38,11 @@ if __name__ == "__main__":
     logger.info(f"Test dataset size: {len(test_dataset)}")
 
     train_dataloader = DataLoader(
-        train_dataset, batch_size=64, shuffle=True, collate_fn=lambda x: x
+        train_dataset, batch_size=64, shuffle=True, collate_fn=collate_fn, num_workers=8
     )
 
     test_dataloader = DataLoader(
-        test_dataset, batch_size=64, shuffle=True, collate_fn=lambda x: x
+        test_dataset, batch_size=64, shuffle=True, collate_fn=collate_fn, num_workers=8
     )
 
     logger.info("Initializing model, optimizer, and loss.")
