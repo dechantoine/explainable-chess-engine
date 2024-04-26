@@ -15,6 +15,7 @@ class ChessBoardTestCase(unittest.TestCase):
             return_outcome=False,
             transform=False,
             include_draws=True,
+            in_memory=False,
         )
         self.len_moves_najdorf = [73, 58, 44, 87]
         self.len_moves_tal = [60, 127, 82, 59, 45, 128]
@@ -38,6 +39,10 @@ class ChessBoardTestCase(unittest.TestCase):
             47,
             28,
         ]
+
+        self.results_najdorf = [0, 0, -1, 0, 0]
+        self.results_tal = [-1, 1, 0, 1, 1, 1]
+        self.results_morphy = [1, 1, 0, 1, -1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1]
 
         self.len_moves_najdorf_no_draws = [44]
         self.len_moves_tal_no_draws = [60, 127, 59, 45, 128]
@@ -92,6 +97,28 @@ class ChessBoardTestCase(unittest.TestCase):
         assert isinstance(results, list)
         assert all(isinstance(x, np.int8) for x in results)
         assert len(results) == len(indices)
+        assert all(
+            results[sum(self.len_moves_najdorf[:i]) + k] == self.results_najdorf[i]
+            for i in range(len(self.len_moves_najdorf))
+            for k in range(self.len_moves_najdorf[i])
+        )
+        assert all(
+            results[sum(self.len_moves_najdorf) + sum(self.len_moves_tal[:i]) + k]
+            == self.results_tal[i]
+            for i in range(len(self.len_moves_tal))
+            for k in range(self.len_moves_tal[i])
+        )
+        assert all(
+            results[
+                sum(self.len_moves_najdorf)
+                + sum(self.len_moves_tal)
+                + sum(self.len_moves_morphy[:i])
+                + k
+            ]
+            == self.results_morphy[i]
+            for i in range(len(self.len_moves_morphy))
+            for k in range(self.len_moves_morphy[i])
+        )
 
         indices_no_draws, results_no_draws = self.dataset.get_boards_indices(
             include_draws=False
