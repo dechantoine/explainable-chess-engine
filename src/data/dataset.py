@@ -1,5 +1,6 @@
 import hashlib
 import os
+import sys
 from typing import Union
 
 import chess.pgn
@@ -8,6 +9,7 @@ import torch
 from loguru import logger
 from torch import Tensor
 from torch.utils.data import Dataset
+from tqdm.contrib.concurrent import process_map
 
 from src.data.data_utils import (
     batch_boards_to_tensor,
@@ -30,6 +32,8 @@ class ChessBoardDataset(Dataset):
         return_outcome: bool = False,
         transform: bool = False,
         include_draws: bool = False,
+        in_memory: bool = False,
+        num_workers: int = None,
     ):
         """
         Arguments:
@@ -38,6 +42,8 @@ class ChessBoardDataset(Dataset):
             return_outcome (bool): Return the outcome of the game for each board.
             transform (bool): Apply the transform to the boards and legal moves.
             include_draws (bool): Include draws in the dataset.
+            in_memory (bool): Load the dataset in memory. Use with caution for large datasets.
+            num_workers (int): Number of workers for the DataLoader. Only used if in_memory is True.
         """
         self.root_dir = root_dir
         self.transform = transform
@@ -50,6 +56,25 @@ class ChessBoardDataset(Dataset):
             include_draws=include_draws
         )
         self.hash = self.get_hash()
+        self.in_memory = in_memory
+        self.num_workers = num_workers
+
+        if self.in_memory:
+            logger.info("Loading the dataset in memory...")
+            self.load_in_memory()
+            logger.info(
+                """Dataset loaded in memory. Memory usage: {:.2f} MB""".format(
+                    sum(
+                        sys.getsizeof(var)
+                        for var in [
+                            self.board_samples,
+                            self.legal_moves_samples,
+                            self.outcomes,
+                        ]
+                    )
+                    / 1e6
+                )
+            )
 
     @logger.catch
     def get_hash(self) -> str:
@@ -109,7 +134,7 @@ class ChessBoardDataset(Dataset):
 
     @logger.catch
     def retrieve_board(self, idx: int) -> (chess.Board, int, int, str):
-        """Retrieve the board at the given index of the dataset.
+        """Retrieve the board at the given index of the dataset from files.
 
         Args:
             idx (int): Index of the board to retrieve.
@@ -137,6 +162,31 @@ class ChessBoardDataset(Dataset):
         return board, move_id, len(mainline), result
 
     @logger.catch
+    def load_in_memory(self):
+        """Load the dataset in memory with multiprocessing."""
+        retrieves = process_map(
+            self.retrieve_board,
+            range(self.__len__()),
+            max_workers=self.num_workers,
+            chunksize=self.__len__() // (100 * self.num_workers),
+            desc=f"Retrieving boards with {self.num_workers} workers...",
+        )
+        board_samples, move_ids, game_lens, game_results = zip(*retrieves)
+
+        self.board_samples = list(board_samples)
+        self.legal_moves_samples = [
+            list(board.legal_moves) for board in self.board_samples
+        ]
+        self.outcomes = [
+            {
+                "move_id": move_id,
+                "game_length": game_len,
+                "game_result": game_result,
+            }
+            for move_id, game_len, game_result in zip(move_ids, game_lens, game_results)
+        ]
+
+    @logger.catch
     def __len__(self):
         return len(self.board_indices)
 
@@ -145,17 +195,24 @@ class ChessBoardDataset(Dataset):
         if torch.is_tensor(idx):
             idx = int(idx.item())
 
-        board_sample, move_id, game_len, game_result = self.retrieve_board(idx)
-        legal_moves_sample = list(board_sample.legal_moves)
-        outcome = {
-            "move_id": move_id,
-            "game_length": game_len,
-            "game_result": game_result,
-        }
+        if self.in_memory:
+            board_sample = self.board_samples[idx]
+            legal_moves_sample = self.legal_moves_samples[idx]
+            outcome = self.outcomes[idx]
+
+        else:
+            board_sample, move_id, game_len, game_result = self.retrieve_board(idx)
+            legal_moves_sample = list(board_sample.legal_moves)
+            outcome = {
+                "move_id": move_id,
+                "game_length": game_len,
+                "game_result": game_result,
+            }
 
         if self.transform:
             board_sample = torch.from_numpy(board_to_tensor(board_sample))
             legal_moves_sample = torch.from_numpy(moves_to_tensor(legal_moves_sample))
+            move_id, game_len, game_result = outcome.values()
             outcome = torch.tensor(
                 [move_id, game_len, result_to_tensor(game_result)[0]]
             )
@@ -176,20 +233,28 @@ class ChessBoardDataset(Dataset):
         if torch.is_tensor(indices):
             indices = indices.int().tolist()
 
-        board_samples, move_ids, game_lens, game_results = zip(
-            *[self.retrieve_board(i) for i in indices]
-        )
+        if self.in_memory:
+            board_samples = [self.board_samples[i] for i in indices]
+            legal_moves_samples = [self.legal_moves_samples[i] for i in indices]
+            outcomes = [self.outcomes[i] for i in indices]
 
-        board_samples = list(board_samples)
-        legal_moves_samples = [list(board.legal_moves) for board in board_samples]
-        outcomes = [
-            {
-                "move_id": move_id,
-                "game_length": game_len,
-                "game_result": game_result,
-            }
-            for move_id, game_len, game_result in zip(move_ids, game_lens, game_results)
-        ]
+        else:
+            board_samples, move_ids, game_lens, game_results = zip(
+                *[self.retrieve_board(i) for i in indices]
+            )
+
+            board_samples = list(board_samples)
+            legal_moves_samples = [list(board.legal_moves) for board in board_samples]
+            outcomes = [
+                {
+                    "move_id": move_id,
+                    "game_length": game_len,
+                    "game_result": game_result,
+                }
+                for move_id, game_len, game_result in zip(
+                    move_ids, game_lens, game_results
+                )
+            ]
 
         if self.transform:
             # logger.info("Transforming the boards to tensors...")
