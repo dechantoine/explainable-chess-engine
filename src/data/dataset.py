@@ -176,22 +176,20 @@ class ChessBoardDataset(Dataset):
         if torch.is_tensor(indices):
             indices = indices.int().tolist()
 
-        board_samples = []
-        legal_moves_samples = []
-        outcomes = []
+        board_samples, move_ids, game_lens, game_results = zip(
+            *[self.retrieve_board(i) for i in indices]
+        )
 
-        for i in indices:
-            board_sample, move_id, game_len, game_result = self.retrieve_board(i)
-            legal_moves_sample = list(board_sample.legal_moves)
-            outcome = {
+        board_samples = list(board_samples)
+        legal_moves_samples = [list(board.legal_moves) for board in board_samples]
+        outcomes = [
+            {
                 "move_id": move_id,
                 "game_length": game_len,
                 "game_result": game_result,
             }
-
-            board_samples.append(board_sample)
-            legal_moves_samples.append(legal_moves_sample)
-            outcomes.append(outcome)
+            for move_id, game_len, game_result in zip(move_ids, game_lens, game_results)
+        ]
 
         if self.transform:
             # logger.info("Transforming the boards to tensors...")
