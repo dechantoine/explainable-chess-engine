@@ -13,11 +13,12 @@ class ChessBoardProfiling:
     def init(self):
         self.dataset = ChessBoardDataset(
             root_dir="../test/test_data",
-            return_moves=True,
-            return_outcome=True,
+            return_moves=False,
+            return_outcome=False,
             transform=True,
             include_draws=False,
             in_memory=True,
+            num_workers=8,
         )
 
     def get_boards_indices(self):
@@ -30,7 +31,7 @@ class ChessBoardProfiling:
 
     def getitems(self):
         for i in range(self.n_test):
-            _, _, _ = self.dataset.__getitems__(list(range(64)))
+            _ = self.dataset.__getitems__(list(range(64)))
 
 
 if __name__ == "__main__":
