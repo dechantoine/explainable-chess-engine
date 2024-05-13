@@ -21,6 +21,7 @@ seaborn = "^0.13.2"
 scikit-learn = "^1.4.2"
 protobuf = "4.25.3"
 pre-commit = "^3.7.0"
+pympler = "^1.0.1"
 
 [tool.pytest.ini_options]
 addopts = [
