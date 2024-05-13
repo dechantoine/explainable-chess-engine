@@ -7,14 +7,27 @@ from src.data.dataset import ChessBoardDataset
 from src.models.simple_feed_forward import SimpleFF
 from src.train.train_utils import train_test_split, training_loop
 
+
+def collate_fn(x):
+    """Collate function for the DataLoader.
+
+    Used to avoid using lambda function, thus allowing for
+    multiprocessing.
+
+    """
+    return x
+
+
 if __name__ == "__main__":
     logger.info("Loading data.")
     dataset = ChessBoardDataset(
         root_dir="./sample_data",
         transform=True,
-        return_moves=True,
+        return_moves=False,
         return_outcome=True,
         include_draws=False,
+        in_memory=True,
+        num_workers=8,
     )
     logger.info(f"Dataset size: {len(dataset)}")
 
@@ -27,11 +40,11 @@ if __name__ == "__main__":
     logger.info(f"Test dataset size: {len(test_dataset)}")
 
     train_dataloader = DataLoader(
-        train_dataset, batch_size=64, shuffle=True, collate_fn=lambda x: x
+        train_dataset, batch_size=64, shuffle=True, collate_fn=collate_fn, num_workers=2
     )
 
     test_dataloader = DataLoader(
-        test_dataset, batch_size=64, shuffle=True, collate_fn=lambda x: x
+        test_dataset, batch_size=64, shuffle=True, collate_fn=collate_fn, num_workers=2
     )
 
     logger.info("Initializing model, optimizer, and loss.")
@@ -60,8 +73,8 @@ if __name__ == "__main__":
         n_epochs=10,
         device="cpu",
         log_sampling=0.05,
-        eval_sampling=0.25,
-        run_name="simple_ff_O",
+        eval_sampling=1,
+        run_name="simple_ff_X",
     )
 
     # logger.info(prof.key_averages(group_by_input_shape=True).table(sort_by="cpu_time_total", row_limit=10))

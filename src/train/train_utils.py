@@ -1,5 +1,5 @@
 import os
-from copy import deepcopy
+from copy import copy
 
 import numpy as np
 import torch
@@ -59,7 +59,7 @@ def train_test_split(
             ]
         )
 
-        # ensure at least one pair for each outcome
+        # ensure at least one pair for each outcome to be able to perform stratification
         for i in np.arange(3, -1, -1):
             outcomes = outcomes.round(decimals=i)
             _, counts = np.unique(outcomes, return_counts=True)
@@ -71,8 +71,8 @@ def train_test_split(
 
     train_indices, test_indices = next(sss.split(X=np.arange(len(dataset)), y=outcomes))
 
-    train_set = deepcopy(dataset)
-    test_set = deepcopy(dataset)
+    train_set = copy(dataset)
+    test_set = copy(dataset)
 
     train_set.board_indices = [dataset.board_indices[i] for i in train_indices]
     test_set.board_indices = [dataset.board_indices[i] for i in test_indices]
@@ -82,6 +82,24 @@ def train_test_split(
 
     train_set.hash = train_set.get_hash()
     test_set.hash = test_set.get_hash()
+
+    if dataset.in_memory:
+        train_set.board_samples = [dataset.board_samples[i] for i in train_indices]
+        test_set.board_samples = [dataset.board_samples[i] for i in test_indices]
+
+        if dataset.return_moves:
+            train_set.legal_moves_samples = [
+                dataset.legal_moves_samples[i] for i in train_indices
+            ]
+            test_set.legal_moves_samples = [
+                dataset.legal_moves_samples[i] for i in test_indices
+            ]
+
+        if dataset.return_outcome:
+            train_set.outcomes = [dataset.outcomes[i] for i in train_indices]
+            test_set.outcomes = [dataset.outcomes[i] for i in test_indices]
+
+    del dataset
 
     return train_set, test_set
 
@@ -130,7 +148,10 @@ def validation(
             desc="Validation batches",
             total=len(test_dataloader),
         ):
-            boards, moves, outcomes = batch
+            if test_dataloader.dataset.return_moves:
+                boards, moves, outcomes = batch
+            else:
+                boards, outcomes = batch
             boards = boards.to(device)
 
             targets = reward_fn(outcome=outcomes, gamma=gamma)
@@ -247,7 +268,11 @@ def training_loop(
             desc="Batches",
             total=len(train_dataloader),
         ):
-            boards, moves, outcomes = batch
+            if train_dataloader.dataset.return_moves:
+                boards, moves, outcomes = batch
+            else:
+                boards, outcomes = batch
+
             boards = boards.to(device)
             outcomes = outcomes.to(device)
 
@@ -336,7 +361,7 @@ def log_train(
         scalar_value=running_loss,
         global_step=epoch * len_trainset + batch_idx,
     )
-    logger.info(f"Epoch {epoch}, batch {batch_idx}, loss: {running_loss}")
+    # logger.info(f"Epoch {epoch}, batch {batch_idx}, loss: {running_loss}")
 
 
 @logger.catch
@@ -458,7 +483,10 @@ def log_testdata(
 
     outcomes = []
     for i, batch in enumerate(test_dataloader):
-        _, _, outcome = batch
+        if test_dataloader.dataset.return_moves:
+            _, _, outcome = batch
+        else:
+            _, outcome = batch
         outcomes.extend(outcome)
 
     outcomes = torch.stack(outcomes)

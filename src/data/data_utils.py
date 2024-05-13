@@ -33,7 +33,7 @@ def format_board(board: chess.Board) -> str:
         str: formatted board.
 
     """
-    return str(board).replace("\n", " ").replace(" ", "")
+    return str(board).replace("\n", "").replace(" ", "")
 
 
 # TODO: read from FEN
@@ -101,20 +101,23 @@ def moves_to_tensor(moves: list[chess.Move]) -> np.array:
 
 
 @logger.catch
-def board_to_tensor(board: chess.Board) -> np.array:
+def board_to_tensor(board: chess.Board, from_compact_str: bool = False) -> np.array:
     """Convert a board to a (12, 8, 8) tensor. The tensor is the one-hot encoding of the board.
 
     Args:
         board (chess.Board): board to convert.
+        from_compact_str (bool, optional): True if the board is in compact string format. Defaults to False.
 
     Returns:
         np.array: board tensor.
 
     """
+    if not from_compact_str:
+        board = format_board(board)
     return np.concatenate(
         (
-            string_to_array(format_board(board)),
-            string_to_array(format_board(board), is_white=False),
+            string_to_array(str_board=board),
+            string_to_array(str_board=board, is_white=False),
         ),
         axis=0,
         dtype=np.int8,
@@ -137,17 +140,25 @@ def batch_moves_to_tensor(batch_moves: list[list[chess.Move]]) -> np.array:
 
 
 @logger.catch
-def batch_boards_to_tensor(batch_boards: list[chess.Board]) -> np.array:
+def batch_boards_to_tensor(
+    batch_boards: list[chess.Board], from_compact_str: bool = False
+) -> np.array:
     """Convert a batch of boards to a batch of board tensors.
 
     Args:
         batch_boards (list[chess.Board]): batch of boards to convert.
+        from_compact_str (bool, optional): True if the boards are in compact string format. Defaults to False.
 
     Returns:
         list[np.array]: batch of board tensors.
 
     """
-    return np.array([board_to_tensor(board) for board in batch_boards])
+    return np.array(
+        [
+            board_to_tensor(board=board, from_compact_str=from_compact_str)
+            for board in batch_boards
+        ]
+    )
 
 
 @logger.catch
