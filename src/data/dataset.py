@@ -1,12 +1,12 @@
 import hashlib
 import os
-import sys
 from typing import Union
 
 import chess.pgn
 import numpy as np
 import torch
 from loguru import logger
+from pympler import asizeof
 from torch import Tensor
 from torch.utils.data import Dataset
 from tqdm.contrib.concurrent import process_map
@@ -62,19 +62,7 @@ class ChessBoardDataset(Dataset):
         if self.in_memory:
             logger.info("Loading the dataset in memory...")
             self.load_in_memory()
-            logger.info(
-                """Dataset loaded in memory. Memory usage: {:.2f} MB""".format(
-                    sum(
-                        sys.getsizeof(var)
-                        for var in [
-                            self.board_samples,
-                            self.legal_moves_samples,
-                            self.outcomes,
-                        ]
-                    )
-                    / 1e6
-                )
-            )
+            self.log_memory()
 
     @logger.catch
     def get_hash(self) -> str:
@@ -281,3 +269,22 @@ class ChessBoardDataset(Dataset):
             return board_samples, outcomes
 
         return board_samples
+
+    @logger.catch
+    def log_memory(self):
+        """Log the memory usage of the dataset."""
+        memusage = {
+            "board_indices": asizeof.asizeof(self.board_indices) / 1e6,
+            "board_samples": asizeof.asizeof(self.board_samples) / 1e6,
+        }
+        if self.return_moves:
+            memusage["legal_moves_samples"] = (
+                asizeof.asizeof(self.legal_moves_samples) / 1e6
+            )
+        if self.return_outcome:
+            memusage["outcomes"] = asizeof.asizeof(self.outcomes) / 1e6
+
+        report = "Dataset loaded in memory. Memory usage: "
+        for key, value in memusage.items():
+            report += f"{key}: {value:.2f} MB, "
+        logger.info(report)
