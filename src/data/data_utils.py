@@ -33,7 +33,7 @@ def format_board(board: chess.Board) -> str:
         str: formatted board.
 
     """
-    return str(board).replace("\n", " ").replace(" ", "")
+    return str(board).replace("\n", "").replace(" ", "")
 
 
 # TODO: read from FEN
