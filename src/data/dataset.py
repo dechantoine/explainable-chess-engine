@@ -16,6 +16,7 @@ from src.data.data_utils import (
     batch_moves_to_tensor,
     batch_results_to_tensor,
     board_to_tensor,
+    format_board,
     moves_to_tensor,
     result_to_tensor,
 )
@@ -33,16 +34,16 @@ class ChessBoardDataset(Dataset):
         transform: bool = False,
         include_draws: bool = False,
         in_memory: bool = False,
-        num_workers: int = None,
+        num_workers: int = 1,
     ):
         """
         Arguments:
             root_dir (string): Directory with all the PGNs.
             return_moves (bool): Return the legal moves for each board.
             return_outcome (bool): Return the outcome of the game for each board.
-            transform (bool): Apply the transform to the boards and legal moves.
+            transform (bool): Apply the transform to the boards and legal moves. Always True if in_memory is True.
             include_draws (bool): Include draws in the dataset.
-            in_memory (bool): Load the dataset in memory. Use with caution for large datasets.
+            in_memory (bool): Load the dataset in memory. Use with caution for large datasets. Returns transformed tensors.
             num_workers (int): Number of workers for the DataLoader. Only used if in_memory is True.
         """
         self.root_dir = root_dir
@@ -60,6 +61,7 @@ class ChessBoardDataset(Dataset):
         self.num_workers = num_workers
 
         if self.in_memory:
+            self.transform = True
             logger.info("Loading the dataset in memory...")
             self.load_in_memory()
             self.log_memory()
@@ -161,18 +163,26 @@ class ChessBoardDataset(Dataset):
         )
         board_samples, move_ids, game_lens, game_results = zip(*retrieves)
 
-        self.board_samples = list(board_samples)
-        self.legal_moves_samples = [
-            list(board.legal_moves) for board in self.board_samples
-        ]
-        self.outcomes = [
-            {
-                "move_id": move_id,
-                "game_length": game_len,
-                "game_result": game_result,
-            }
-            for move_id, game_len, game_result in zip(move_ids, game_lens, game_results)
-        ]
+        board_samples = list(board_samples)
+
+        self.board_samples = [format_board(board) for board in board_samples]
+
+        if self.return_moves:
+            self.legal_moves_samples = [
+                list(board.legal_moves) for board in board_samples
+            ]
+
+        if self.return_outcome:
+            self.outcomes = [
+                {
+                    "move_id": move_id,
+                    "game_length": game_len,
+                    "game_result": game_result,
+                }
+                for move_id, game_len, game_result in zip(
+                    move_ids, game_lens, game_results
+                )
+            ]
 
     @logger.catch
     def __len__(self):
@@ -185,25 +195,42 @@ class ChessBoardDataset(Dataset):
 
         if self.in_memory:
             board_sample = self.board_samples[idx]
-            legal_moves_sample = self.legal_moves_samples[idx]
-            outcome = self.outcomes[idx]
+
+            legal_moves_sample = (
+                self.legal_moves_samples[idx] if self.return_moves else None
+            )
+            outcome = self.outcomes[idx] if self.return_outcome else None
 
         else:
-            board_sample, move_id, game_len, game_result = self.retrieve_board(idx)
-            legal_moves_sample = list(board_sample.legal_moves)
-            outcome = {
-                "move_id": move_id,
-                "game_length": game_len,
-                "game_result": game_result,
-            }
+            board_sample, move_id, game_len, game_result = self.retrieve_board(idx=idx)
+            legal_moves_sample = (
+                list(board_sample.legal_moves) if self.return_moves else None
+            )
+            outcome = (
+                {
+                    "move_id": move_id,
+                    "game_length": game_len,
+                    "game_result": game_result,
+                }
+                if self.return_outcome
+                else None
+            )
 
         if self.transform:
-            board_sample = torch.from_numpy(board_to_tensor(board_sample))
-            legal_moves_sample = torch.from_numpy(moves_to_tensor(legal_moves_sample))
-            move_id, game_len, game_result = outcome.values()
-            outcome = torch.tensor(
-                [move_id, game_len, result_to_tensor(game_result)[0]]
+            board_sample = torch.from_numpy(
+                board_to_tensor(board=board_sample, from_compact_str=self.in_memory)
             )
+
+            if self.return_moves:
+                legal_moves_sample = torch.from_numpy(
+                    moves_to_tensor(moves=legal_moves_sample)
+                )
+
+            if self.return_outcome:
+                move_id, game_len, game_result = outcome.values()
+                outcome = torch.tensor(
+                    [move_id, game_len, result_to_tensor(result=game_result)[0]]
+                )
 
         if self.return_moves and self.return_outcome:
             return board_sample, legal_moves_sample, outcome
@@ -223,41 +250,64 @@ class ChessBoardDataset(Dataset):
 
         if self.in_memory:
             board_samples = [self.board_samples[i] for i in indices]
-            legal_moves_samples = [self.legal_moves_samples[i] for i in indices]
-            outcomes = [self.outcomes[i] for i in indices]
+            legal_moves_samples = (
+                [self.legal_moves_samples[i] for i in indices]
+                if self.return_moves
+                else None
+            )
+            outcomes = (
+                [self.outcomes[i] for i in indices] if self.return_outcome else None
+            )
 
         else:
             board_samples, move_ids, game_lens, game_results = zip(
-                *[self.retrieve_board(i) for i in indices]
+                *[self.retrieve_board(idx=i) for i in indices]
             )
 
             board_samples = list(board_samples)
-            legal_moves_samples = [list(board.legal_moves) for board in board_samples]
-            outcomes = [
-                {
-                    "move_id": move_id,
-                    "game_length": game_len,
-                    "game_result": game_result,
-                }
-                for move_id, game_len, game_result in zip(
-                    move_ids, game_lens, game_results
-                )
-            ]
+            legal_moves_samples = (
+                [list(board.legal_moves) for board in board_samples]
+                if self.return_moves
+                else None
+            )
+            outcomes = (
+                [
+                    {
+                        "move_id": move_id,
+                        "game_length": game_len,
+                        "game_result": game_result,
+                    }
+                    for move_id, game_len, game_result in zip(
+                        move_ids, game_lens, game_results
+                    )
+                ]
+                if self.return_outcome
+                else None
+            )
 
         if self.transform:
             # logger.info("Transforming the boards to tensors...")
-            board_samples = torch.from_numpy(batch_boards_to_tensor(board_samples))
-            # logger.info("Transforming the legal moves to tensors...")
-            legal_moves_samples = torch.from_numpy(
-                batch_moves_to_tensor(legal_moves_samples)
+            board_samples = torch.from_numpy(
+                batch_boards_to_tensor(
+                    batch_boards=board_samples, from_compact_str=self.in_memory
+                )
             )
-            moves_ids = np.array([outcome["move_id"] for outcome in outcomes])
-            game_lens = np.array([outcome["game_length"] for outcome in outcomes])
-            # logger.info("Transforming the outcomes to tensors...")
-            game_results = batch_results_to_tensor(
-                [outcome["game_result"] for outcome in outcomes]
-            ).flatten()
-            outcomes = torch.tensor(np.array([moves_ids, game_lens, game_results]).T)
+            # logger.info("Transforming the legal moves to tensors...")
+            if self.return_moves:
+                legal_moves_samples = torch.from_numpy(
+                    batch_moves_to_tensor(batch_moves=legal_moves_samples)
+                )
+
+            if self.return_outcome:
+                moves_ids = np.array([outcome["move_id"] for outcome in outcomes])
+                game_lens = np.array([outcome["game_length"] for outcome in outcomes])
+                # logger.info("Transforming the outcomes to tensors...")
+                game_results = batch_results_to_tensor(
+                    batch_results=[outcome["game_result"] for outcome in outcomes]
+                ).flatten()
+                outcomes = torch.tensor(
+                    np.array([moves_ids, game_lens, game_results]).T
+                )
 
         if self.return_moves and self.return_outcome:
             return board_samples, legal_moves_samples, outcomes
