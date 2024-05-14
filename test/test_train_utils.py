@@ -5,11 +5,13 @@ import torch
 from src.data.dataset import ChessBoardDataset
 from src.train.train_utils import reward_fn, train_test_split
 
+test_data_dir = "test/test_data"
+
 
 class TrainUtilsTestCase(unittest.TestCase):
     def setUp(self):
         self.dataset = ChessBoardDataset(
-            root_dir="../test/test_data",
+            root_dir=test_data_dir,
             return_moves=False,
             return_outcome=False,
             transform=False,

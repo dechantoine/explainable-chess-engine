@@ -6,11 +6,13 @@ from torch import Tensor
 
 from src.data.dataset import ChessBoardDataset
 
+test_data_dir = "test/test_data"
+
 
 class ChessBoardTestCase(unittest.TestCase):
     def setUp(self):
         self.dataset = ChessBoardDataset(
-            root_dir="../test/test_data",
+            root_dir=test_data_dir,
             return_moves=False,
             return_outcome=False,
             transform=False,
@@ -19,7 +21,7 @@ class ChessBoardTestCase(unittest.TestCase):
         )
 
         self.dataset_in_memory = ChessBoardDataset(
-            root_dir="../test/test_data",
+            root_dir=test_data_dir,
             return_moves=False,
             return_outcome=False,
             transform=False,
@@ -29,7 +31,7 @@ class ChessBoardTestCase(unittest.TestCase):
         )
 
         self.dataset_in_memory_return_moves = ChessBoardDataset(
-            root_dir="../test/test_data",
+            root_dir=test_data_dir,
             return_moves=True,
             return_outcome=False,
             transform=False,
@@ -39,7 +41,7 @@ class ChessBoardTestCase(unittest.TestCase):
         )
 
         self.dataset_in_memory_return_outcome = ChessBoardDataset(
-            root_dir="../test/test_data",
+            root_dir=test_data_dir,
             return_moves=False,
             return_outcome=True,
             transform=False,
@@ -49,7 +51,7 @@ class ChessBoardTestCase(unittest.TestCase):
         )
 
         self.dataset_in_memory_return_both = ChessBoardDataset(
-            root_dir="../test/test_data",
+            root_dir=test_data_dir,
             return_moves=True,
             return_outcome=True,
             transform=False,

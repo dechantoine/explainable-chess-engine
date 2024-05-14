@@ -12,7 +12,7 @@ class ChessBoardProfiling:
 
     def init(self):
         self.dataset = ChessBoardDataset(
-            root_dir="../test/test_data",
+            root_dir="profile_package/profile_data",
             return_moves=False,
             return_outcome=False,
             transform=True,
