@@ -4,6 +4,8 @@ from pstats import SortKey, Stats
 
 from src.data.dataset import ChessBoardDataset
 
+save_dir = "profile_package/profile_dataset"
+
 
 class ChessBoardProfiling:
     def __init__(self):
@@ -37,7 +39,7 @@ class ChessBoardProfiling:
 if __name__ == "__main__":
     chess_profiling = ChessBoardProfiling()
 
-    os.makedirs("./dataset", exist_ok=True)
+    os.makedirs(save_dir, exist_ok=True)
 
     with Profile() as profiler:
         profiler.runcall(chess_profiling.init)
@@ -45,7 +47,7 @@ if __name__ == "__main__":
         stats = Stats(profiler)
         stats.strip_dirs()
         stats.sort_stats(SortKey.TIME)
-        stats.dump_stats("./dataset/init.prof")
+        stats.dump_stats(os.path.join(save_dir, "init.prof"))
 
     with Profile() as profiler:
         profiler.runcall(chess_profiling.get_boards_indices)
@@ -53,7 +55,7 @@ if __name__ == "__main__":
         stats = Stats(profiler)
         stats.strip_dirs()
         stats.sort_stats(SortKey.TIME)
-        stats.dump_stats("./dataset/get_boards_indices.prof")
+        stats.dump_stats(os.path.join(save_dir, "get_boards_indices.prof"))
 
     with Profile() as profiler:
         profiler.runcall(chess_profiling.retrieve_board)
@@ -61,7 +63,7 @@ if __name__ == "__main__":
         stats = Stats(profiler)
         stats.strip_dirs()
         stats.sort_stats(SortKey.TIME)
-        stats.dump_stats("./dataset/retrieve_board.prof")
+        stats.dump_stats(os.path.join(save_dir, "retrieve_board.prof"))
 
     with Profile() as profiler:
         profiler.runcall(chess_profiling.getitems)
@@ -69,4 +71,4 @@ if __name__ == "__main__":
         stats = Stats(profiler)
         stats.strip_dirs()
         stats.sort_stats(SortKey.TIME)
-        stats.dump_stats("./dataset/getitems.prof")
+        stats.dump_stats(os.path.join(save_dir, "getitems.prof"))

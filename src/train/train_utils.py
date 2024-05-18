@@ -4,12 +4,28 @@ from copy import copy
 import numpy as np
 import torch
 from loguru import logger
+from MultiChoice import MultiChoice
 from sklearn.model_selection import StratifiedShuffleSplit
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from src.data.dataset import ChessBoardDataset
 from src.train.viz_utils import plot_bivariate_distributions
+
+
+@logger.catch
+def reward_fn(outcome: torch.Tensor, gamma: float = 0.99) -> torch.Tensor:
+    """Calculate the reward for the given outcome.
+
+    Args:
+        outcome (torch.Tensor): Outcome of the game.
+        gamma (float): Discount factor.
+
+    Returns:
+        tensor: Rewards for the given outcomes.
+
+    """
+    return torch.Tensor((gamma ** (outcome[:, 1] - outcome[:, 0])) * outcome[:, 2])
 
 
 @logger.catch
@@ -105,18 +121,106 @@ def train_test_split(
 
 
 @logger.catch
-def reward_fn(outcome: torch.Tensor, gamma: float = 0.99) -> torch.Tensor:
-    """Calculate the reward for the given outcome.
+def list_existing_models(run_name: str) -> list[int]:
+    """List the existing models for the given run name.
 
     Args:
-        outcome (torch.Tensor): Outcome of the game.
-        gamma (float): Discount factor.
+        run_name (str): Name of the run.
 
     Returns:
-        tensor: Rewards for the given outcomes.
+        list[int]: List of existing checkpoints.
 
     """
-    return torch.Tensor((gamma ** (outcome[:, 1] - outcome[:, 0])) * outcome[:, 2])
+    list_checkpoints = [
+        int(f.split("_")[-1].split(".")[0])
+        for f in os.listdir(f"./models_checkpoint/{run_name}")
+        if os.path.isfile(os.path.join(f"./models_checkpoint/{run_name}", f))
+    ]
+
+    list_checkpoints.sort()
+
+    return list_checkpoints
+
+
+@logger.catch
+def ask_user_for_checkpoint(run_name: str) -> str or None:
+    """Ask the user for the checkpoint to load.
+
+    Args:
+        run_name (str): Name of the run.
+
+    Returns:
+        int: Checkpoint to load.
+
+    """
+    checkpoints = [str(chkpt) for chkpt in list_existing_models(run_name)]
+
+    if len(checkpoints) == 0:
+        return None
+
+    else:
+        question = MultiChoice(
+            query="There exist the following checkpoints for this run name. Please choose one to load or start from "
+            "scratch:",
+            options=["Start From Scratch"] + checkpoints,
+        )
+        answer = question()
+
+    return answer
+
+
+@logger.catch
+def init_training(
+    run_name: str,
+    model: torch.nn.Module,
+    optimizer: torch.optim.Optimizer,
+) -> (torch.nn.Module, torch.optim.Optimizer, int):
+    """Initialize the training.
+
+    Args:
+        run_name (str): Name of the run.
+        model (torch.nn.Module): Model to train.
+        optimizer (torch.optim.optimizer.Optimizer): Optimizer to use.
+
+    Returns:
+        torch.nn.Module, torch.optim.optimizer.Optimizer, str: Model, optimizer, checkpoint.
+
+    """
+    checkpoint = ask_user_for_checkpoint(run_name)
+
+    if checkpoint == "Start From Scratch":
+        checkpoint = -1
+        if os.path.exists(f"./runs/{run_name}"):
+            logger.info(f"Removing existing further logs for {run_name}.")
+            for f in os.listdir(f"./runs/{run_name}"):
+                os.remove(os.path.join(f"./runs/{run_name}", f))
+            os.rmdir(f"./runs/{run_name}")
+
+    elif checkpoint is None:
+        logger.info("No existing checkpoints found.")
+        checkpoint = 0
+
+    else:
+        checkpoint = int(checkpoint)
+        logger.info(f"Loading checkpoint {checkpoint}.")
+        chkpt = torch.load(f"./models_checkpoint/{run_name}/checkpoint_{checkpoint}.pt")
+        model.load_state_dict(chkpt["model_state_dict"])
+        optimizer.load_state_dict(chkpt["optimizer_state_dict"])
+
+    if os.path.exists(f"./runs/{run_name}"):
+        logger.info(f"Removing existing further checkpoints for {run_name}.")
+        for f in os.listdir(f"./models_checkpoint/{run_name}"):
+            if int(f.split("_")[-1].split(".")[0]) > checkpoint:
+                os.remove(os.path.join(f"./models_checkpoint/{run_name}", f))
+        # os.rmdir(f"./models_checkpoint/{run_name}")
+
+    # if os.path.exists(f"./runs/{run_name}"):
+    #    logger.info(f"Removing existing further logs for {run_name}.")
+    #    for f in os.listdir(f"./runs/{run_name}"):
+    #        os.remove(os.path.join(f"./runs/{run_name}", f))
+    #    os.rmdir(f"./runs/{run_name}")
+
+    return model, optimizer, max(checkpoint, 0)
 
 
 @logger.catch
@@ -226,6 +330,7 @@ def training_loop(
     train_dataloader: torch.utils.data.DataLoader,
     test_dataloader: torch.utils.data.DataLoader = None,
     n_epochs: int = 1,
+    resume_step: int = 0,
     device: torch.device = torch.device("cpu"),
     log_sampling: float = 0.1,
     eval_sampling: float = 1,
@@ -240,6 +345,7 @@ def training_loop(
         gamma (float): Discount factor.
         train_dataloader (torch.utils.data.DataLoader): Training dataloader.
         n_epochs (int): Number of epochs.
+        resume_step (int): Step to resume from.
         device (torch.device): Device to use.
         test_dataloader (torch.utils.data.DataLoader): Testing dataloader.
         log_sampling (float): Sampling rate for logging.
@@ -250,21 +356,27 @@ def training_loop(
     model.to(device)
     model.train()
 
-    writer = SummaryWriter(log_dir=f"./runs/{run_name}")
-
     log_interval = int(len(train_dataloader) * log_sampling)
     eval_interval = int(len(train_dataloader) * eval_sampling)
+
+    first_epoch = resume_step // len(train_dataloader)
+    first_batch = resume_step % len(train_dataloader)
+
+    writer = SummaryWriter(
+        log_dir=f"./runs/{run_name}",
+        purge_step=first_epoch * len(train_dataloader) + first_batch + 1,
+    )
 
     log_testdata(test_dataloader=test_dataloader, gamma=gamma, writer=writer)
 
     for epoch in tqdm(
-        iterable=range(n_epochs),
+        iterable=range(first_epoch, n_epochs),
         desc="Epochs",
     ):
         running_loss = 0.0
 
         for batch_idx, batch in tqdm(
-            iterable=enumerate(train_dataloader),
+            iterable=enumerate(iterable=train_dataloader, start=first_batch),
             desc="Batches",
             total=len(train_dataloader),
         ):

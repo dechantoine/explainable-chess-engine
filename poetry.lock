@@ -1680,6 +1680,17 @@ gmpy = ["gmpy2 (>=2.1.0a4)"]
 tests = ["pytest (>=4.6)"]
 
 [[package]]
+name = "multichoice"
+version = "0.3.5"
+description = "Framework for generating formatted user input questions."
+optional = false
+python-versions = ">=3.6"
+files = [
+    {file = "MultiChoice-0.3.5-py3-none-any.whl", hash = "sha256:dc7ecaa0e29bfade01ad659baa1167f7757f358cbfd29282170ab1c1bd3756af"},
+    {file = "MultiChoice-0.3.5.tar.gz", hash = "sha256:7ccd1ce6fb8029f40cdd30003bf6abbcc2f1901a956a47d6f80aa8709a101862"},
+]
+
+[[package]]
 name = "nbclient"
 version = "0.10.0"
 description = "A client library for executing notebooks. Formerly nbconvert's ExecutePreprocessor."
@@ -3592,4 +3603,4 @@ dev = ["black (>=19.3b0)", "pytest (>=4.6.2)"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "47c96beede7ced41c2c939c6255fd46b94291dd18be29d8999907ddb8f04e567"
+content-hash = "bb3d3c16482e115533254763d17556d052be928ea977c5b3dee491e2b315a768"
