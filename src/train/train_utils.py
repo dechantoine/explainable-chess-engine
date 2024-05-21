@@ -131,11 +131,12 @@ def list_existing_models(run_name: str) -> list[int]:
         list[int]: List of existing checkpoints.
 
     """
-    list_checkpoints = [
-        int(f.split("_")[-1].split(".")[0])
-        for f in os.listdir(f"./models_checkpoint/{run_name}")
-        if os.path.isfile(os.path.join(f"./models_checkpoint/{run_name}", f))
-    ]
+    list_checkpoints = []
+
+    if os.path.exists(f"./models_checkpoint/{run_name}"):
+        for f in os.listdir(f"./models_checkpoint/{run_name}"):
+            if os.path.isfile(os.path.join(f"./models_checkpoint/{run_name}", f)):
+                list_checkpoints.append(int(f.split("_")[-1].split(".")[0]))
 
     list_checkpoints.sort()
 
