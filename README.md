@@ -71,10 +71,10 @@ This project will be a great way to learn about chess engines, deep learning, an
   - [x] Training loop
   - [x] Logging & Tensorboard
   - [x] Evaluation
-  - [ ] Save & Load model
+  - [x] Save & Load model
   - [ ] Tests for training framework
 - [ ] Chess Engine
-  - [ ] Beam Search using the model
+  - [x] Beam Search using the model
   - [ ] Evaluate against Stockfish
   - [ ] Tests for the chess engine
 - [ ] Deployment
