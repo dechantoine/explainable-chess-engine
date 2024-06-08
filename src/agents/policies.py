@@ -2,6 +2,7 @@ import chess.pgn
 import more_itertools
 import numpy as np
 import torch
+from anytree import AnyNode, LevelOrderGroupIter
 
 from data.data_utils import batch_boards_to_tensor
 
@@ -86,7 +87,7 @@ def one_depth_eval(model: torch.nn.Module, boards: list[chess.Board]) -> tuple:
 
 def beam_search(
     model: torch.nn.Module, board: chess.Board, depth: int = 2, beam_width: int = 5
-):
+) -> AnyNode:
     """Beam search algorithm to evaluate the next moves. The algorithm maximizes (minimizes) the score of the board for
     white (black) player. It assumes that the opponent plays the best greedy move.
 
@@ -97,25 +98,24 @@ def beam_search(
         beam_width (int): width of the beam
 
     Returns:
-        tuple: tuple of best boards, best moves and best scores
+        AnyNode: tree of the best moves
 
     """
-    best_boards = [board.copy()]
-    best_moves = [[]]
+    root = AnyNode(board=board.copy(), score=None, move=None)
 
     is_white = board.turn
     is_opponent = False
 
     for _ in range(depth):
+        best_nodes = list(LevelOrderGroupIter(root))[-1]
+        best_boards = [node.board for node in best_nodes]
+
         boards, moves, scores = one_depth_eval(model=model, boards=best_boards)
 
-        # add the previous moves to the new moves
-        moves = [
-            [best_moves[i] + [moves[i][j]] for j in range(len(moves[i]))]
-            for i in range(len(moves))
-        ]
-
         if not is_opponent:
+            # save the children count of each node
+            children_count = [len(boards[i]) for i in range(len(boards))]
+
             # flatten the list of scores, boards and moves
             scores = [
                 scores[i][j] for i in range(len(scores)) for j in range(len(scores[i]))
@@ -136,10 +136,16 @@ def beam_search(
 
             idx = np.argpartition(scores, partition)[partition]
 
-            # get the best boards, scores and moves
-            best_boards = [boards[j] for j in idx]
-            best_scores = [scores[j] for j in idx]
-            best_moves = [moves[j] for j in idx]
+            # add the best boards, scores and moves to the tree
+            for i in idx:
+                # find the parent of the node by inserting its index in the cumulative sum of children count
+                parent = np.searchsorted(np.cumsum(children_count), i)
+                AnyNode(
+                    parent=best_nodes[parent],
+                    board=boards[i],
+                    score=scores[i],
+                    move=moves[i],
+                )
 
         if is_opponent:
             if is_white:
@@ -147,11 +153,16 @@ def beam_search(
             else:
                 idx = [np.argmin(scores[i]) for i in range(len(scores))]
 
-            best_boards = [boards[i][idx[i]] for i in range(len(idx))]
-            best_scores = [scores[i][idx[i]] for i in range(len(idx))]
-            best_moves = [moves[i][idx[i]] for i in range(len(idx))]
+            # add the best boards, scores and moves to the tree
+            for i in range(len(idx)):
+                AnyNode(
+                    parent=best_nodes[i],
+                    board=boards[i][idx[i]],
+                    score=scores[i][idx[i]],
+                    move=moves[i][idx[i]],
+                )
 
         is_white = not is_white
         is_opponent = not is_opponent
 
-    return best_boards, best_moves, best_scores
+    return root
