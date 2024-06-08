@@ -101,12 +101,12 @@ def beam_search(
         AnyNode: tree of the best moves
 
     """
-    root = AnyNode(board=board.copy(), score=None, move=None)
+    root = AnyNode(name="ROOT", board=board.copy(), score=None, move=None)
 
     is_white = board.turn
     is_opponent = False
 
-    for _ in range(depth):
+    for d in range(depth):
         best_nodes = list(LevelOrderGroupIter(root))[-1]
         best_boards = [node.board for node in best_nodes]
 
@@ -137,14 +137,15 @@ def beam_search(
             idx = np.argpartition(scores, partition)[partition]
 
             # add the best boards, scores and moves to the tree
-            for i in idx:
+            for i in range(len(idx)):
                 # find the parent of the node by inserting its index in the cumulative sum of children count
-                parent = np.searchsorted(np.cumsum(children_count), i)
+                parent = np.searchsorted(np.cumsum(children_count), idx[i])
                 AnyNode(
+                    name=f"Depth {d} Candidate {i}",
                     parent=best_nodes[parent],
-                    board=boards[i],
-                    score=scores[i],
-                    move=moves[i],
+                    board=boards[idx[i]],
+                    score=scores[idx[i]],
+                    move=moves[idx[i]],
                 )
 
         if is_opponent:
@@ -156,6 +157,7 @@ def beam_search(
             # add the best boards, scores and moves to the tree
             for i in range(len(idx)):
                 AnyNode(
+                    name=f"Depth {d} Candidate {i}",
                     parent=best_nodes[i],
                     board=boards[i][idx[i]],
                     score=scores[i][idx[i]],
