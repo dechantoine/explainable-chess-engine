@@ -6,7 +6,7 @@ import gradio as gr
 import torch
 from PIL import Image
 
-from demos.temp.demo_utils import clean_board
+from demos.demo_utils import clean_board
 from src.agents.policies import beam_search, eval_board
 from src.agents.viz_utils import plot_save_beam_search
 from src.models.simple_feed_forward import SimpleFF
@@ -83,6 +83,7 @@ with gr.Blocks() as demo:
                 gr.Slider(value=4, minimum=1, maximum=10, step=1),
             ],
             outputs="image",
+            allow_flagging="never",
         )
     with gr.Tab("Score a board"):
         gr.Interface(
@@ -94,6 +95,9 @@ with gr.Blocks() as demo:
                 ),
             ],
             outputs=["image", "text"],
+            allow_flagging="never",
         )
 
-demo.launch()
+
+if __name__ == "__main__":
+    demo.launch()
