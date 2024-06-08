@@ -26,6 +26,7 @@ multichoice = "^0.3.5"
 more-itertools = "^10.2.0"
 anytree = "^2.12.1"
 graphviz = "^0.20.3"
+gradio = "^4.36.0"
 
 [tool.pytest.ini_options]
 addopts = [
