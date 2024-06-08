@@ -4,7 +4,21 @@ import numpy as np
 import torch
 from anytree import AnyNode, LevelOrderGroupIter
 
-from data.data_utils import batch_boards_to_tensor
+from src.data.data_utils import batch_boards_to_tensor
+
+
+def eval_board(model: torch.nn.Module, board: chess.Board) -> float:
+    """Evaluate a single board.
+
+    Args:
+        model (torch.nn.Module): model to evaluate the board
+        board (chess.Board): board to evaluate
+
+    Returns:
+        float: score of the board
+
+    """
+    return model(torch.from_numpy(batch_boards_to_tensor([board]))).item()
 
 
 def get_legal_moves(boards: list[chess.Board]) -> list[list[chess.Move]]:
