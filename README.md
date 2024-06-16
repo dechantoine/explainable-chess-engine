@@ -11,7 +11,7 @@
     A minimalist DL chess engine with explainability.
     <br />
     <br />
-    <a href="https://github.com/dechantoine/explainable-chess-engine">View Demo</a>
+    <a href="https://huggingface.co/spaces/dechantoine/explainable-chess-engine">View Demo</a>
     ·
     <a href="https://github.com/dechantoine/explainable-chess-engine">Report Bug</a>
     ·
@@ -80,7 +80,7 @@ This project will be a great way to learn about chess engines, deep learning, an
 - [ ] Deployment
   - [ ] Dockerize the project
   - [ ] Deploy on Lichess
-  - [ ] Deploy on HuggingFace
+  - [x] Deploy on HuggingFace
 
 <!-- GETTING STARTED -->
 
@@ -123,6 +123,18 @@ poetry run python -m src.train.train
 
 ```sh
 poetry run tensorboard --logdir=runs
+```
+
+### Launch Gradio demo
+
+```sh
+poetry run python -m demos.app
+```
+
+### Deploy on HuggingFace Spaces
+
+```sh
+poetry run python -m scripts.deploy_space
 ```
 
 <!-- CONTACT -->
