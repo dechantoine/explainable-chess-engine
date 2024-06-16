@@ -1,19 +1,25 @@
 import os
+import sys
 
 import chess.pgn
 import chess.svg
 import gradio as gr
 import torch
-from PIL import Image
+from loguru import logger
 
-from demos.demo_utils import clean_board
 from src.agents.policies import beam_search, eval_board
-from src.agents.viz_utils import plot_save_beam_search
+from src.agents.viz_utils import plot_save_beam_search, save_svg
+from src.data.data_utils import clean_board
 from src.models.simple_feed_forward import SimpleFF
 
-TEMP_DIR = "./demos/temp/"
+# TEMP_DIR = "./demos/temp/"
+CHKPT = "checkpoint_36700.pt"
 
-chkpt = torch.load(f="./models_checkpoint/simple_ff_0/checkpoint_36700.pt")
+file = sys.argv[0]
+DIR_PATH = os.path.dirname(file)
+TEMP_DIR = os.path.join(DIR_PATH, "temp")
+
+chkpt = torch.load(os.path.join(DIR_PATH, f"models/{CHKPT}"))
 model = SimpleFF()
 model.load_state_dict(state_dict=chkpt["model_state_dict"])
 model.eval()
@@ -21,6 +27,7 @@ model.eval()
 os.makedirs(name=TEMP_DIR, exist_ok=True)
 
 
+@logger.catch(level="DEBUG", reraise=True)
 def evaluate_board(board: chess.Board):
     """Evaluate the board.
 
@@ -32,19 +39,12 @@ def evaluate_board(board: chess.Board):
 
     """
     board = clean_board(board=board)
-    svg = chess.svg.board(
-        board=board,
-        size=360,
-        lastmove=board.peek() if board.move_stack else None,
-        check=board.king(board.turn) if board.is_check() else None,
-    )
-    xml_declaration = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>'
-    with open(os.path.join(TEMP_DIR, "board.svg"), "w") as f:
-        f.write(xml_declaration + svg)
+    save_svg(board=board, filename=os.path.join(TEMP_DIR, "board"), to_png=False)
 
     return os.path.join(TEMP_DIR, "board.svg"), eval_board(model=model, board=board)
 
 
+@logger.catch(level="DEBUG", reraise=True)
 def plot_beam_search(board: chess.Board, depth: int, beam_width: int):
     """Plot the beam search tree.
 
@@ -62,11 +62,12 @@ def plot_beam_search(board: chess.Board, depth: int, beam_width: int):
     beam = beam_search(model=model, board=board, depth=depth, beam_width=beam_width)
     plot_save_beam_search(
         beam=beam,
-        filename=os.path.abspath(os.path.join(TEMP_DIR, "beam_search")),
-        temp_dir=os.path.abspath(TEMP_DIR),
+        filename=os.path.join(TEMP_DIR, "beam_search"),
+        temp_dir=TEMP_DIR,
+        intermediate_png=True,
     )
 
-    return Image.open(fp=os.path.join(TEMP_DIR, "beam_search.png"))
+    return os.path.join(TEMP_DIR, "beam_search.png")
 
 
 with gr.Blocks() as demo:
@@ -79,12 +80,13 @@ with gr.Blocks() as demo:
                     value="rnbqkbnr/ppp1pppp/8/3p4/2PP4/8/PP2PPPP/RNBQKBNR b KQkq - 0 2",
                     label="Provide FEN or PGN board:",
                 ),
-                gr.Slider(value=4, minimum=1, maximum=10, step=1),
-                gr.Slider(value=4, minimum=1, maximum=10, step=1),
+                gr.Slider(value=4, minimum=1, maximum=10, step=1, label="Depth"),
+                gr.Slider(value=4, minimum=1, maximum=10, step=1, label="Beam width"),
             ],
             outputs="image",
             allow_flagging="never",
         )
+
     with gr.Tab("Score a board"):
         gr.Interface(
             fn=evaluate_board,
