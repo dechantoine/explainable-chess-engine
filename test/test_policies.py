@@ -1,0 +1,97 @@
+import unittest
+
+import chess.pgn
+import numpy as np
+import torch
+from anytree import AnyNode, LevelOrderGroupIter
+
+from src.agents.policies import beam_search, eval_board, get_legal_moves, one_depth_eval, push_legal_moves
+
+
+class MockModel(torch.nn.Module):
+    def __init__(self):
+        super(MockModel, self).__init__()
+        self.flatten = torch.nn.Flatten()
+        self.linear = torch.nn.Linear(in_features=12 * 8 * 8, out_features=1)
+
+    def forward(self, x):
+        x = x.float()
+        x = self.flatten(x)
+        return self.linear(x)
+
+
+class PoliciesTestCase(unittest.TestCase):
+    def setUp(self):
+        self.fen = "rnbqkbnr/ppp1pppp/8/3p4/2PP4/8/PP2PPPP/RNBQKBNR b KQkq - 0 2"
+        self.model = MockModel()
+        self.board = chess.Board(fen=self.fen)
+
+        self.beam_depth = 8
+        self.beam_width = 4
+
+    def test_eval_board(self):
+        score = eval_board(model=self.model, board=self.board)
+
+        self.assertIsInstance(score, float)
+        self.assertGreater(score, -1)
+        self.assertLess(score, 1)
+
+    def test_get_legal_moves(self):
+        legal_moves = get_legal_moves(boards=[self.board, self.board.copy()])
+
+        self.assertIsInstance(legal_moves, list)
+        self.assertIsInstance(legal_moves[0], list)
+        self.assertIsInstance(legal_moves[0][0], chess.Move)
+
+        self.assertEqual(len(legal_moves), 2)
+        self.assertEqual(len(legal_moves[0]), 28)
+
+    def test_push_legal_moves(self):
+        legal_moves = get_legal_moves(boards=[self.board, self.board.copy()])
+        pushed_boards = push_legal_moves(
+            boards=[self.board, self.board.copy()], legal_moves=legal_moves
+        )
+
+        self.assertIsInstance(pushed_boards, list)
+        self.assertIsInstance(pushed_boards[0], list)
+        self.assertIsInstance(pushed_boards[0][0], chess.Board)
+
+        self.assertEqual(len(pushed_boards), 2)
+        self.assertEqual(len(pushed_boards[0]), 28)
+
+    def test_one_depth_eval(self):
+        boards = [self.board, self.board.copy()]
+
+        legal_boards, legal_moves, scores = one_depth_eval(
+            model=self.model, boards=boards
+        )
+
+        self.assertIsInstance(legal_boards, list)
+        self.assertIsInstance(legal_boards[0], list)
+        self.assertIsInstance(legal_boards[0][0], chess.Board)
+
+        self.assertIsInstance(legal_moves, list)
+        self.assertIsInstance(legal_moves[0], list)
+        self.assertIsInstance(legal_moves[0][0], chess.Move)
+
+        self.assertIsInstance(scores, list)
+        self.assertIsInstance(scores[0], list)
+        self.assertIsInstance(scores[0][0], np.float32)
+
+    def test_beam_search(self):
+        beam = beam_search(
+            model=self.model,
+            board=self.board,
+            depth=self.beam_depth,
+            beam_width=self.beam_width,
+        )
+
+        self.assertIsInstance(beam, AnyNode)
+        self.assertEqual(beam.height, self.beam_depth)
+
+        for depth in list(LevelOrderGroupIter(beam))[1:]:
+            self.assertEqual(len(depth), self.beam_width)
+
+        self.assertIsInstance(beam.children[0].score, np.float32)
+        self.assertIsInstance(beam.children[0].board, chess.Board)
+        self.assertIsInstance(beam.children[0].move, chess.Move)
