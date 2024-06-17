@@ -99,6 +99,66 @@ def one_depth_eval(model: torch.nn.Module, boards: list[chess.Board]) -> tuple:
     return legal_boards, legal_moves, scores
 
 
+def beam_sampling(boards: list[list[chess.Board]], scores: list[list[np.float32]], moves: list[list[chess.Move]],
+                  beam_width: int, is_white: bool = True, is_opponent: bool = False) -> list[dict]:
+    """Sample the beam_width best boards.
+
+    Args:
+        boards (list): list of chess.Board objects
+        scores (list): list of scores of the boards
+        moves (list): list of moves to get to the boards
+        beam_width (int): width of the beam
+        is_white (bool): whether the player is white
+        is_opponent (bool): whether the player is the opponent
+
+    Returns:
+        tuple: tuple of the beam_width best boards, scores and moves
+
+    """
+    if not is_opponent:
+        # save the children count of each node
+        children_count = [len(boards[i]) for i in range(len(boards))]
+
+        # flatten the list of scores, boards and moves
+        scores = [
+            scores[i][j] for i in range(len(scores)) for j in range(len(scores[i]))
+        ]
+        boards = [
+            boards[i][j] for i in range(len(boards)) for j in range(len(boards[i]))
+        ]
+        moves = [
+            moves[i][j] for i in range(len(moves)) for j in range(len(moves[i]))
+        ]
+
+        # get the beam_width best scores
+        level_width = min(beam_width, len(scores))
+        if is_white:
+            partition = np.arange(-1, -(level_width + 1), -1)
+        else:
+            partition = np.arange(level_width)
+
+        idx = np.argpartition(scores, partition)[partition]
+
+        return [{"candidate_id": i,
+                 "parent_id": np.searchsorted(np.cumsum(children_count), idx[i]),
+                 "board": boards[idx[i]],
+                 "score": scores[idx[i]],
+                 "move": moves[idx[i]]} for i in range(len(idx))]
+
+    if is_opponent:
+
+        if is_white:
+            idx = [np.argmax(scores[i]) for i in range(len(scores))]
+        else:
+            idx = [np.argmin(scores[i]) for i in range(len(scores))]
+
+        return [{"candidate_id": i,
+                 "parent_id": i,
+                 "board": boards[i][idx[i]],
+                 "score": scores[i][idx[i]],
+                 "move": moves[i][idx[i]]} for i in range(len(idx))]
+
+
 def beam_search(
     model: torch.nn.Module, board: chess.Board, depth: int = 2, beam_width: int = 5
 ) -> AnyNode:
@@ -126,57 +186,21 @@ def beam_search(
 
         boards, moves, scores = one_depth_eval(model=model, boards=best_boards)
 
-        if not is_opponent:
-            # save the children count of each node
-            children_count = [len(boards[i]) for i in range(len(boards))]
+        nodes = beam_sampling(boards=boards,
+                              scores=scores,
+                              moves=moves,
+                              beam_width=beam_width,
+                              is_white=is_white,
+                              is_opponent=is_opponent)
 
-            # flatten the list of scores, boards and moves
-            scores = [
-                scores[i][j] for i in range(len(scores)) for j in range(len(scores[i]))
-            ]
-            boards = [
-                boards[i][j] for i in range(len(boards)) for j in range(len(boards[i]))
-            ]
-            moves = [
-                moves[i][j] for i in range(len(moves)) for j in range(len(moves[i]))
-            ]
-
-            # get the beam_width best scores
-            level_width = min(beam_width, len(scores))
-            if is_white:
-                partition = np.arange(-1, -(level_width + 1), -1)
-            else:
-                partition = np.arange(level_width)
-
-            idx = np.argpartition(scores, partition)[partition]
-
-            # add the best boards, scores and moves to the tree
-            for i in range(len(idx)):
-                # find the parent of the node by inserting its index in the cumulative sum of children count
-                parent = np.searchsorted(np.cumsum(children_count), idx[i])
-                AnyNode(
-                    name=f"Depth {d} Candidate {i}",
-                    parent=best_nodes[parent],
-                    board=boards[idx[i]],
-                    score=scores[idx[i]],
-                    move=moves[idx[i]],
-                )
-
-        if is_opponent:
-            if is_white:
-                idx = [np.argmax(scores[i]) for i in range(len(scores))]
-            else:
-                idx = [np.argmin(scores[i]) for i in range(len(scores))]
-
-            # add the best boards, scores and moves to the tree
-            for i in range(len(idx)):
-                AnyNode(
-                    name=f"Depth {d} Candidate {i}",
-                    parent=best_nodes[i],
-                    board=boards[i][idx[i]],
-                    score=scores[i][idx[i]],
-                    move=moves[i][idx[i]],
-                )
+        for n in nodes:
+            AnyNode(
+                name=f"Depth {d} Candidate {n['candidate_id']}",
+                parent=best_nodes[n["parent_id"]],
+                board=n["board"],
+                score=n["score"],
+                move=n["move"],
+            )
 
         is_white = not is_white
         is_opponent = not is_opponent
