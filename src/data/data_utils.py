@@ -270,3 +270,34 @@ def batch_results_to_tensor(batch_results: list[str]) -> np.array:
 
     """
     return np.array([result_to_tensor(result) for result in batch_results])
+
+
+@logger.catch
+def read_boards_from_pgn(pgn_file: str, start_move: int = 0, end_move: int = 0) -> list[chess.Board]:
+    """Read boards from a PGN file.
+
+    Args:
+        pgn_file (str): path to the PGN file
+        start_move (int): move to start from in each game
+        end_move (int): move to end at in each game (counting from the end)
+
+    Returns:
+        list[chess.Board]: list of boards
+
+    """
+    pgn = open(pgn_file)
+    game = chess.pgn.read_game(pgn)
+    boards = []
+
+    while game:
+        board = game.board()
+        mainline = list(game.mainline_moves())
+        end_index = len(mainline) - end_move
+
+        for i, move in enumerate(mainline[:end_index]):
+            board.push(move)
+            if start_move <= i:
+                boards.append(board.copy())
+        game = chess.pgn.read_game(pgn)
+
+    return boards
