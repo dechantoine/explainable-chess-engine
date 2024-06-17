@@ -72,6 +72,10 @@ def one_depth_eval(model: torch.nn.Module, boards: list[chess.Board]) -> tuple:
         tuple: tuple of legal boards, legal moves to get to the legal boards and scores of the legal boards
 
     """
+    # check if some boards are in the terminal state
+    terminal_boards = {i: board.outcome() for i, board in enumerate(boards) if board.outcome()}
+
+    # get legal boards for each legal move for each board
     legal_moves = get_legal_moves(boards)
     legal_boards = push_legal_moves(boards, legal_moves)
 
@@ -85,16 +89,33 @@ def one_depth_eval(model: torch.nn.Module, boards: list[chess.Board]) -> tuple:
         for j in range(len(legal_boards[i]))
     ]
 
-    scores = (
-        model(torch.from_numpy(batch_boards_to_tensor(legal_boards)))
-        .detach()
-        .numpy()
-        .flatten()
-    )
+    if len(legal_boards) > 0:
+        scores = (
+            model(torch.from_numpy(batch_boards_to_tensor(legal_boards)))
+            .detach()
+            .numpy()
+            .flatten()
+        )
 
-    # reshape the scores and boards to the original shape
-    scores = list(more_itertools.split_into(scores, legal_boards_shape))
+        # reshape the scores to the original shape
+        scores = list(more_itertools.split_into(scores, legal_boards_shape))
+
+    else:
+        scores = [.0 for _ in range(len(boards))]
+
+    # reshape the legal boards to the original shape
     legal_boards = list(more_itertools.split_into(legal_boards, legal_boards_shape))
+
+    # set the legal boards and scores of the terminal boards
+    for i, reason in terminal_boards.items():
+        legal_boards[i] = [boards[i]]
+        legal_moves[i] = [None]
+        if reason.result() == "1-0":
+            scores[i] = [1.0]
+        elif reason.result() == "0-1":
+            scores[i] = [-1.0]
+        else:
+            scores[i] = [0.0]
 
     return legal_boards, legal_moves, scores
 
