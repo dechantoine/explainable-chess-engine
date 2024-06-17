@@ -30,8 +30,10 @@ class MockModel(torch.nn.Module):
 class PoliciesTestCase(unittest.TestCase):
     def setUp(self):
         self.fen = "rnbqkbnr/ppp1pppp/8/3p4/2PP4/8/PP2PPPP/RNBQKBNR b KQkq - 0 2"
+        self.checkmate_fen = " 1r3rk1/p3bppp/1pb5/2p1p1B1/3P2n1/2P3P1/PP2PPqP/R2QR1K1 w - - 0 16"
         self.model = MockModel()
         self.board = chess.Board(fen=self.fen)
+        self.checkmate_board = chess.Board(fen=self.checkmate_fen)
 
         self.beam_depth = 8
         self.beam_width = 4
@@ -84,6 +86,18 @@ class PoliciesTestCase(unittest.TestCase):
         self.assertIsInstance(scores, list)
         self.assertIsInstance(scores[0], list)
         self.assertIsInstance(scores[0][0], np.float32)
+
+        legal_boards, legal_moves, scores = one_depth_eval(
+            model=self.model, boards=[self.checkmate_board, self.board]
+        )
+
+        self.assertEqual(len(legal_boards[0]), 1)
+        self.assertEqual(len(legal_moves[0]), 1)
+        self.assertEqual(len(scores[0]), 1)
+
+        self.assertEqual(legal_boards[0][0], self.checkmate_board)
+        self.assertIsNone(legal_moves[0][0])
+        self.assertEqual(scores[0][0], -1)
 
     def test_beam_sampling(self):
         beam = beam_sampling(
