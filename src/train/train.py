@@ -1,6 +1,6 @@
 from loguru import logger
 from torch.nn import MSELoss
-from torch.optim import Adagrad
+from torch.optim import Adadelta
 from torch.utils.data import DataLoader
 
 from src.data.dataset import ChessBoardDataset
@@ -8,13 +8,13 @@ from src.models.simple_feed_forward import SimpleFF
 from src.train.train_utils import init_training, train_test_split, training_loop
 
 train_params = {
-    "run_name": "simple_ff_0",
+    "run_name": "simple_ff_17",
     "dataset_num_workers": 8,
     "dataloaders_num_workers": 2,
     "train_size": 0.90,
-    "n_epochs": 8,
+    "n_epochs": 20,
     "batch_size": 64,
-    "lr": 0.05,
+    "lr": 0.1,
     "gamma": 0.99,
     "log_sampling": 0.05,
     "eval_sampling": 1,
@@ -34,7 +34,7 @@ def collate_fn(x):
 if __name__ == "__main__":
     logger.info("Initializing model, optimizer, and loss.")
     model = SimpleFF()
-    optimizer = Adagrad(
+    optimizer = Adadelta(
         model.parameters(),
         lr=train_params["lr"],
     )
