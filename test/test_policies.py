@@ -5,7 +5,14 @@ import numpy as np
 import torch
 from anytree import AnyNode, LevelOrderGroupIter
 
-from src.agents.policies import beam_search, eval_board, get_legal_moves, one_depth_eval, push_legal_moves
+from src.agents.policies import (
+    beam_sampling,
+    beam_search,
+    eval_board,
+    get_legal_moves,
+    one_depth_eval,
+    push_legal_moves,
+)
 
 
 class MockModel(torch.nn.Module):
@@ -77,6 +84,49 @@ class PoliciesTestCase(unittest.TestCase):
         self.assertIsInstance(scores, list)
         self.assertIsInstance(scores[0], list)
         self.assertIsInstance(scores[0][0], np.float32)
+
+    def test_beam_sampling(self):
+        beam = beam_sampling(
+            boards=[[self.board.copy() for _ in range(20)]],
+            scores=[np.linspace(-1, 1, 20).tolist()],
+            moves=[[next(self.board.generate_legal_moves()) for _ in range(20)]],
+            beam_width=self.beam_width,
+            is_white=True,
+            is_opponent=False,
+        )
+
+        self.assertIsInstance(beam, list)
+        self.assertIsInstance(beam[0], dict)
+
+        self.assertIsInstance(beam[0]["board"], chess.Board)
+        self.assertIsInstance(beam[0]["move"], chess.Move)
+        self.assertIsInstance(beam[0]["score"], float)
+
+        self.assertEqual(len(beam), self.beam_width)
+        self.assertEqual(beam[0]["score"], 1)
+
+        beam = beam_sampling(
+            boards=[[self.board.copy() for _ in range(20)]],
+            scores=[np.linspace(-1, 1, 20).tolist()],
+            moves=[[next(self.board.generate_legal_moves()) for _ in range(20)]],
+            beam_width=self.beam_width,
+            is_white=True,
+            is_opponent=True,
+        )
+
+        self.assertEqual(len(beam), 1)
+        self.assertEqual(beam[0]["score"], 1)
+
+        beam = beam_sampling(
+            boards=[[self.board.copy() for _ in range(20)]],
+            scores=[np.linspace(-1, 1, 20).tolist()],
+            moves=[[next(self.board.generate_legal_moves()) for _ in range(20)]],
+            beam_width=self.beam_width,
+            is_white=False,
+            is_opponent=True,
+        )
+
+        self.assertEqual(beam[0]["score"], -1)
 
     def test_beam_search(self):
         beam = beam_search(
