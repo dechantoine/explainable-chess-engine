@@ -110,7 +110,7 @@ poetry run python -m pytest
 ### Run performance tests
 
 ```sh
-poetry run python -m profile_package.profile_dataset
+poetry run python -m profiling.profile dataset --n_test=10 --data_dir=data --save_dir=profile
 ```
 
 ### Train a model
