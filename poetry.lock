@@ -3882,6 +3882,17 @@ anyio = ">=3.4.0,<5"
 full = ["httpx (>=0.22.0)", "itsdangerous", "jinja2", "python-multipart (>=0.0.7)", "pyyaml"]
 
 [[package]]
+name = "stockfish"
+version = "3.28.0"
+description = "Wraps the open-source Stockfish chess engine for easy integration into python."
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "stockfish-3.28.0-py3-none-any.whl", hash = "sha256:e432e57112448fe1271dff402db3a4747bf00d1721815ce0a36cfa26582cf360"},
+    {file = "stockfish-3.28.0.tar.gz", hash = "sha256:8764127c00434aa85b7fca1c064800e7ea907bb3626ccd4b583f0e911b014070"},
+]
+
+[[package]]
 name = "sympy"
 version = "1.12"
 description = "Computer algebra system (CAS) in Python"
@@ -4699,4 +4710,4 @@ dev = ["black (>=19.3b0)", "pytest (>=4.6.2)"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "dbb324c4ba0a2f1dbc6730914438991bbcc06f3df28accdb100190896958b305"
+content-hash = "153f0428d324d3364c4c0dce90f77d01d0580e887d28d08598edbe0713358644"
