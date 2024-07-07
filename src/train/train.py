@@ -1,3 +1,4 @@
+import click
 from loguru import logger
 from torch.nn import MSELoss
 from torch.optim import Adadelta
@@ -6,19 +7,6 @@ from torch.utils.data import DataLoader
 from src.data.dataset import ChessBoardDataset
 from src.models.simple_feed_forward import SimpleFF
 from src.train.train_utils import init_training, train_test_split, training_loop
-
-train_params = {
-    "run_name": "simple_ff_17",
-    "dataset_num_workers": 8,
-    "dataloaders_num_workers": 2,
-    "train_size": 0.90,
-    "n_epochs": 20,
-    "batch_size": 64,
-    "lr": 0.1,
-    "gamma": 0.99,
-    "log_sampling": 0.05,
-    "eval_sampling": 1,
-}
 
 
 def collate_fn(x):
@@ -31,17 +19,45 @@ def collate_fn(x):
     return x
 
 
-if __name__ == "__main__":
+@click.group()
+def cli():
+    pass
+
+
+@click.command()
+@click.argument("run_name")
+@click.option("--dataset_num_workers", default=8, help="Python dataset number of workers.")
+@click.option("--dataloaders_num_workers", default=2, help="Torch Dataloaders number of workers.")
+@click.option("--train_size", default=0.9, help="Train size.")
+@click.option("--n_epochs", default=20, help="Number of epochs.")
+@click.option("--batch_size", default=64, help="Batch size.")
+@click.option("--lr", default=0.1, help="Learning rate.")
+@click.option("--gamma", default=0.99, help="Gamma discount factor.")
+@click.option("--log_sampling", default=0.05, help="Log every x fraction of epoch.")
+@click.option("--eval_sampling", default=1.0, help="Run and log eval every x fraction of epoch.")
+def rl(run_name,
+       dataset_num_workers,
+       dataloaders_num_workers,
+       train_size,
+       n_epochs,
+       batch_size,
+       lr,
+       gamma,
+       log_sampling,
+       eval_sampling):
+
     logger.info("Initializing model, optimizer, and loss.")
     model = SimpleFF()
     optimizer = Adadelta(
-        model.parameters(),
-        lr=train_params["lr"],
+        params=model.parameters(),
+        lr=lr,
     )
     loss = MSELoss()
 
     model, optimizer, resume_step = init_training(
-        train_params["run_name"], model, optimizer
+        run_name=run_name,
+        model=model,
+        optimizer=optimizer
     )
 
     logger.info(
@@ -56,13 +72,16 @@ if __name__ == "__main__":
         return_outcome=True,
         include_draws=False,
         in_memory=True,
-        num_workers=train_params["dataset_num_workers"],
+        num_workers=dataset_num_workers,
     )
     logger.info(f"Dataset size: {len(dataset)}")
 
     logger.info("Splitting data.")
     train_dataset, test_dataset = train_test_split(
-        dataset=dataset, seed=0, train_size=train_params["train_size"], stratify=True
+        dataset=dataset,
+        seed=0,
+        train_size=train_size,
+        stratify=True
     )
 
     logger.info(f"Train dataset size: {len(train_dataset)}")
@@ -70,18 +89,18 @@ if __name__ == "__main__":
 
     train_dataloader = DataLoader(
         train_dataset,
-        batch_size=train_params["batch_size"],
+        batch_size=batch_size,
         shuffle=True,
         collate_fn=collate_fn,
-        num_workers=train_params["dataloaders_num_workers"],
+        num_workers=dataloaders_num_workers,
     )
 
     test_dataloader = DataLoader(
         test_dataset,
-        batch_size=train_params["batch_size"],
+        batch_size=batch_size,
         shuffle=True,
         collate_fn=collate_fn,
-        num_workers=train_params["dataloaders_num_workers"],
+        num_workers=dataloaders_num_workers,
     )
 
     logger.info("Starting training loop.")
@@ -89,13 +108,18 @@ if __name__ == "__main__":
         model=model,
         optimizer=optimizer,
         loss=loss,
-        gamma=train_params["gamma"],
+        gamma=gamma,
         train_dataloader=train_dataloader,
         test_dataloader=test_dataloader,
-        n_epochs=train_params["n_epochs"],
+        n_epochs=n_epochs,
         resume_step=resume_step,
         device="cpu",
-        log_sampling=train_params["log_sampling"],
-        eval_sampling=train_params["eval_sampling"],
-        run_name=train_params["run_name"],
+        log_sampling=log_sampling,
+        eval_sampling=eval_sampling,
+        run_name=run_name,
     )
+
+
+if __name__ == "__main__":
+    cli.add_command(rl)
+    cli()

@@ -110,13 +110,13 @@ poetry run python -m pytest
 ### Run performance tests
 
 ```sh
-poetry run python -m profile_package.profile_dataset
+poetry run python -m profiling.profile dataset --n_test=10 --data_dir=data --save_dir=profile
 ```
 
 ### Train a model
 
 ```sh
-poetry run python -m src.train.train
+poetry run python -m src.train.train rl run_name=run_name --dataset_num_workers=8 --dataloaders_num_workers=2 --train_size=0.9 --n_epochs=20 --batch_size=64 --lr=0.1 --gamma=0.99 --log_sampling=0.05 --eval_sampling=1.0
 ```
 
 ### Launch Tensorboard
