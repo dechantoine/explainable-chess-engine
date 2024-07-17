@@ -12,6 +12,9 @@ from tqdm import tqdm
 from src.data.dataset import ChessBoardDataset
 from src.train.viz_utils import plot_bivariate_distributions
 
+CHECKPOINT_PREFIX = "checkpoint_"
+START_FROM_SCRATCH = "Start From Scratch"
+
 
 @logger.catch
 def reward_fn(outcome: torch.Tensor, gamma: float = 0.99) -> torch.Tensor:
@@ -30,7 +33,7 @@ def reward_fn(outcome: torch.Tensor, gamma: float = 0.99) -> torch.Tensor:
 
 @logger.catch
 def train_test_split(
-    dataset: ChessBoardDataset, seed: int, train_size: float, stratify=True
+        dataset: ChessBoardDataset, seed: int, train_size: float, stratify=True
 ) -> (ChessBoardDataset, ChessBoardDataset):
     """Split the provided dataset into a training and testing set.
 
@@ -54,17 +57,17 @@ def train_test_split(
 
         for file_index in np.unique(board_indices[:, 0]):
             for game_index in np.unique(
-                board_indices[board_indices[:, 0] == file_index, 1]
+                    board_indices[board_indices[:, 0] == file_index, 1]
             ):
                 len_game = (
-                    max(
-                        board_indices[
-                            (board_indices[:, 0] == file_index)
-                            & (board_indices[:, 1] == game_index),
-                            2,
-                        ]
-                    )
-                    + 1
+                        max(
+                            board_indices[
+                                (board_indices[:, 0] == file_index)
+                                & (board_indices[:, 1] == game_index),
+                                2,
+                            ]
+                        )
+                        + 1
                 )
                 len_games += [len_game] * len_game
 
@@ -121,11 +124,12 @@ def train_test_split(
 
 
 @logger.catch
-def list_existing_models(run_name: str) -> list[int]:
+def list_existing_models(run_name: str, checkpoint_dir: str) -> list[int]:
     """List the existing models for the given run name.
 
     Args:
         run_name (str): Name of the run.
+        checkpoint_dir (str): Directory to look for the checkpoints.
 
     Returns:
         list[int]: List of existing checkpoints.
@@ -133,9 +137,9 @@ def list_existing_models(run_name: str) -> list[int]:
     """
     list_checkpoints = []
 
-    if os.path.exists(f"./models_checkpoint/{run_name}"):
-        for f in os.listdir(f"./models_checkpoint/{run_name}"):
-            if os.path.isfile(os.path.join(f"./models_checkpoint/{run_name}", f)):
+    if os.path.exists(f"{checkpoint_dir}/{run_name}"):
+        for f in os.listdir(f"{checkpoint_dir}/{run_name}"):
+            if os.path.isfile(os.path.join(f"{checkpoint_dir}/{run_name}", f)):
                 list_checkpoints.append(int(f.split("_")[-1].split(".")[0]))
 
     list_checkpoints.sort()
@@ -144,17 +148,20 @@ def list_existing_models(run_name: str) -> list[int]:
 
 
 @logger.catch
-def ask_user_for_checkpoint(run_name: str) -> str or None:
+def ask_user_for_checkpoint(run_name: str,
+                            checkpoint_dir: str
+                            ) -> str or None:
     """Ask the user for the checkpoint to load.
 
     Args:
         run_name (str): Name of the run.
+        checkpoint_dir (str): Directory to look for the checkpoints.
 
     Returns:
-        int: Checkpoint to load.
+        str: Checkpoint to load.
 
     """
-    checkpoints = [str(chkpt) for chkpt in list_existing_models(run_name)]
+    checkpoints = [str(chkpt) for chkpt in list_existing_models(run_name, checkpoint_dir)]
 
     if len(checkpoints) == 0:
         return None
@@ -162,8 +169,8 @@ def ask_user_for_checkpoint(run_name: str) -> str or None:
     else:
         question = MultiChoice(
             query="There exist the following checkpoints for this run name. Please choose one to load or start from "
-            "scratch:",
-            options=["Start From Scratch"] + checkpoints,
+                  "scratch:",
+            options=[START_FROM_SCRATCH] + checkpoints,
         )
         answer = question()
 
@@ -172,14 +179,18 @@ def ask_user_for_checkpoint(run_name: str) -> str or None:
 
 @logger.catch
 def init_training(
-    run_name: str,
-    model: torch.nn.Module,
-    optimizer: torch.optim.Optimizer,
+        run_name: str,
+        checkpoint_dir: str,
+        log_dir: str,
+        model: torch.nn.Module,
+        optimizer: torch.optim.Optimizer,
 ) -> (torch.nn.Module, torch.optim.Optimizer, int):
     """Initialize the training.
 
     Args:
         run_name (str): Name of the run.
+        checkpoint_dir (str): Directory to look for the checkpoints.
+        log_dir (str): Directory to save the logs.
         model (torch.nn.Module): Model to train.
         optimizer (torch.optim.optimizer.Optimizer): Optimizer to use.
 
@@ -187,15 +198,15 @@ def init_training(
         torch.nn.Module, torch.optim.optimizer.Optimizer, str: Model, optimizer, checkpoint.
 
     """
-    checkpoint = ask_user_for_checkpoint(run_name)
+    checkpoint = ask_user_for_checkpoint(run_name, checkpoint_dir)
 
     if checkpoint == "Start From Scratch":
         checkpoint = -1
-        if os.path.exists(f"./runs/{run_name}"):
+        if os.path.exists(f"./{log_dir}/{run_name}"):
             logger.info(f"Removing existing further logs for {run_name}.")
-            for f in os.listdir(f"./runs/{run_name}"):
-                os.remove(os.path.join(f"./runs/{run_name}", f))
-            os.rmdir(f"./runs/{run_name}")
+            for f in os.listdir(f"./{log_dir}/{run_name}"):
+                os.remove(os.path.join(f"./{log_dir}/{run_name}", f))
+            os.rmdir(f"./{log_dir}/{run_name}")
 
     elif checkpoint is None:
         logger.info("No existing checkpoints found.")
@@ -204,33 +215,26 @@ def init_training(
     else:
         checkpoint = int(checkpoint)
         logger.info(f"Loading checkpoint {checkpoint}.")
-        chkpt = torch.load(f"./models_checkpoint/{run_name}/checkpoint_{checkpoint}.pt")
+        chkpt = torch.load(f"./{checkpoint_dir}/{run_name}/{CHECKPOINT_PREFIX}{checkpoint}.pt")
         model.load_state_dict(chkpt["model_state_dict"])
         optimizer.load_state_dict(chkpt["optimizer_state_dict"])
 
-    if os.path.exists(f"./runs/{run_name}"):
+    if os.path.exists(f"./{checkpoint_dir}/{run_name}"):
         logger.info(f"Removing existing further checkpoints for {run_name}.")
-        for f in os.listdir(f"./models_checkpoint/{run_name}"):
+        for f in os.listdir(f"./{checkpoint_dir}/{run_name}"):
             if int(f.split("_")[-1].split(".")[0]) > checkpoint:
-                os.remove(os.path.join(f"./models_checkpoint/{run_name}", f))
-        # os.rmdir(f"./models_checkpoint/{run_name}")
-
-    # if os.path.exists(f"./runs/{run_name}"):
-    #    logger.info(f"Removing existing further logs for {run_name}.")
-    #    for f in os.listdir(f"./runs/{run_name}"):
-    #        os.remove(os.path.join(f"./runs/{run_name}", f))
-    #    os.rmdir(f"./runs/{run_name}")
+                os.remove(os.path.join(f"./{checkpoint_dir}/{run_name}", f))
 
     return model, optimizer, max(checkpoint, 0)
 
 
 @logger.catch
-def validation(
-    model: torch.nn.Module,
-    test_dataloader: torch.utils.data.DataLoader,
-    gamma: float,
-    device: torch.device,
-) -> dict[str, dict[str, float]] and np.array:
+def validation_values(
+        model: torch.nn.Module,
+        test_dataloader: torch.utils.data.DataLoader,
+        gamma: float,
+        device: torch.device,
+) -> np.array:
     """Validation function for the model.
 
     Args:
@@ -240,7 +244,7 @@ def validation(
         device (torch.device): Device to use.
 
     Returns:
-        dict[str, dict[str, float]], np.array: Evaluation metrics, outputs and targets.
+        np.array: Outputs and targets.
 
     """
     model.eval()
@@ -249,9 +253,9 @@ def validation(
 
     with torch.no_grad():
         for i, batch in tqdm(
-            iterable=enumerate(test_dataloader, 0),
-            desc="Validation batches",
-            total=len(test_dataloader),
+                iterable=enumerate(test_dataloader, 0),
+                desc="Validation batches",
+                total=len(test_dataloader),
         ):
             if test_dataloader.dataset.return_moves:
                 boards, moves, outcomes = batch
@@ -268,14 +272,32 @@ def validation(
     val_outputs = np.array(val_outputs).flatten()
     val_targets = np.array(val_targets).flatten()
 
-    eval_scalars = {}
-    errors = (val_targets - val_outputs).flatten()
-    squared_errors = errors**2
+    return val_outputs, val_targets
 
-    eval_scalars["Distributions/mean_pred_%"] = np.mean(val_outputs) / np.mean(
-        val_targets
+
+@logger.catch
+def validation(
+        outputs: np.array,
+        targets: np.array,
+) -> dict[str, dict[str, float]]:
+    """Validation functions for the model.
+
+    Args:
+        outputs (np.array): Outputs of the model.
+        targets (np.array): Targets of the model.
+
+    Returns:
+        dict[str, dict[str, float]]: Evaluation metrics
+
+    """
+    eval_scalars = {}
+    errors = (targets - outputs).flatten()
+    squared_errors = errors ** 2
+
+    eval_scalars["Distributions/mean_pred_%"] = np.mean(outputs) / np.mean(
+        targets
     )
-    eval_scalars["Distributions/std_pred_%"] = np.std(val_outputs) / np.std(val_targets)
+    eval_scalars["Distributions/std_pred_%"] = np.std(outputs) / np.std(targets)
 
     eval_scalars["Errors/mean_error"] = np.mean(errors)
     eval_scalars["Errors/std_error"] = np.std(errors)
@@ -284,175 +306,71 @@ def validation(
     eval_scalars["Errors/mean_absolute_error"] = np.mean(abs(errors))
     eval_scalars["Errors/std_absolute_error"] = np.std(abs(errors))
 
-    return eval_scalars, val_outputs, val_targets
+    return eval_scalars
+
+
+@logger.catch
+def gradient_descent_values(
+        model: torch.nn.Module,
+        boards: torch.Tensor,
+        outcomes: torch.Tensor,
+        gamma: float = 0.99,
+) -> (torch.Tensor, torch.Tensor):
+    """Outputs and targets for the gradient descent.
+
+    Args:
+        model (torch.nn.Module): Model to train.
+        boards (torch.Tensor): Input boards.
+        outcomes (torch.Tensor): Outcomes of the games.
+        gamma (float): Discount factor.
+
+    Returns:
+        torch.Tensor: Outputs and targets.
+
+    """
+    model.train()
+    outputs = model(boards).reshape(-1)
+    targets = reward_fn(outcome=outcomes, gamma=gamma)
+
+    return outputs, targets
 
 
 @logger.catch
 def training_step(
-    model: torch.nn.Module,
-    optimizer: torch.optim.Optimizer,
-    loss: torch.nn.modules.loss._Loss,
-    boards: torch.Tensor,
-    outcomes: torch.Tensor,
-    gamma: float = 0.99,
-    return_pred: bool = False,
-) -> float or tuple[float, torch.Tensor]:
+        optimizer: torch.optim.Optimizer,
+        loss: torch.nn.modules.loss._Loss,
+        outputs: torch.Tensor,
+        targets: torch.Tensor
+) -> float:
     """Training step for the model.
 
     Args:
         model (torch.nn.Module): Model to train.
         optimizer (torch.optim.optimizer.Optimizer): Optimizer to use.
         loss (torch.nn.modules.loss._Loss): Loss function to use.
-        boards (torch.Tensor): Input boards.
-        outcomes (torch.Tensor): Outcomes of the games.
-        gamma (float): Discount factor.
-        return_pred (bool): Return the predictions.
+        outputs (torch.Tensor): Outputs of the model.
+        targets (torch.Tensor): Targets of the model.
+
+    Returns:
+        float: Loss value.
 
     """
     optimizer.zero_grad()
-    pred = model(boards).reshape(-1)
-    targets = reward_fn(outcome=outcomes, gamma=gamma)
-    loss_value = loss(pred, targets)
+    loss_value = loss(outputs, targets)
     loss_value.backward()
     optimizer.step()
-
-    if return_pred:
-        return loss_value.item(), pred
 
     return loss_value.item()
 
 
 @logger.catch
-def training_loop(
-    model: torch.nn.Module,
-    optimizer: torch.optim.Optimizer,
-    loss: torch.nn.modules.loss._Loss,
-    gamma: float,
-    train_dataloader: torch.utils.data.DataLoader,
-    test_dataloader: torch.utils.data.DataLoader = None,
-    n_epochs: int = 1,
-    resume_step: int = 0,
-    device: torch.device = torch.device("cpu"),
-    log_sampling: float = 0.1,
-    eval_sampling: float = 1,
-    run_name: str = "default",
-) -> None:
-    """Training loop for the model.
-
-    Args:
-        model (torch.nn.Module): Model to train.
-        optimizer (torch.optim.optimizer.Optimizer): Optimizer to use.
-        loss (torch.nn.modules.loss._Loss): Loss function to use.
-        gamma (float): Discount factor.
-        train_dataloader (torch.utils.data.DataLoader): Training dataloader.
-        n_epochs (int): Number of epochs.
-        resume_step (int): Step to resume from.
-        device (torch.device): Device to use.
-        test_dataloader (torch.utils.data.DataLoader): Testing dataloader.
-        log_sampling (float): Sampling rate for logging.
-        eval_sampling (float): Sampling rate for evaluation.
-        run_name (str): Name of the run.
-
-    """
-    model.to(device)
-    model.train()
-
-    log_interval = int(len(train_dataloader) * log_sampling)
-    eval_interval = int(len(train_dataloader) * eval_sampling)
-
-    first_epoch = resume_step // len(train_dataloader)
-    first_batch = resume_step % len(train_dataloader)
-
-    writer = SummaryWriter(
-        log_dir=f"./runs/{run_name}",
-        purge_step=first_epoch * len(train_dataloader) + first_batch + 1,
-    )
-
-    log_testdata(test_dataloader=test_dataloader, gamma=gamma, writer=writer)
-
-    for epoch in tqdm(
-        iterable=range(first_epoch, n_epochs),
-        desc="Epochs",
-    ):
-        running_loss = 0.0
-
-        for batch_idx, batch in tqdm(
-            iterable=enumerate(iterable=train_dataloader, start=first_batch),
-            desc="Batches",
-            total=len(train_dataloader),
-        ):
-            if train_dataloader.dataset.return_moves:
-                boards, moves, outcomes = batch
-            else:
-                boards, outcomes = batch
-
-            boards = boards.to(device)
-            outcomes = outcomes.to(device)
-
-            loss_value = training_step(
-                model=model,
-                optimizer=optimizer,
-                loss=loss,
-                boards=boards,
-                outcomes=outcomes,
-            )
-
-            running_loss += loss_value
-
-            if batch_idx % log_interval == 0:
-                log_train(
-                    epoch=epoch,
-                    batch_idx=batch_idx,
-                    running_loss=running_loss,
-                    len_trainset=len(train_dataloader),
-                    log_interval=log_interval,
-                    writer=writer,
-                )
-                running_loss = 0.0
-
-            if batch_idx % eval_interval == 0 and test_dataloader is not None:
-                log_eval(
-                    epoch=epoch,
-                    batch_idx=batch_idx,
-                    model=model,
-                    optimizer=optimizer,
-                    loss=loss,
-                    train_dataloader=train_dataloader,
-                    test_dataloader=test_dataloader,
-                    gamma=gamma,
-                    n_epochs=n_epochs,
-                    device=device,
-                    writer=writer,
-                    run_name=run_name,
-                )
-
-        if test_dataloader is not None:
-            log_eval(
-                epoch=epoch,
-                batch_idx=len(train_dataloader),
-                model=model,
-                optimizer=optimizer,
-                loss=loss,
-                train_dataloader=train_dataloader,
-                test_dataloader=test_dataloader,
-                gamma=gamma,
-                n_epochs=n_epochs,
-                device=device,
-                writer=writer,
-                run_name=run_name,
-            )
-
-    writer.close()
-
-
-@logger.catch
 def log_train(
-    epoch: int,
-    batch_idx: int,
-    running_loss: float,
-    len_trainset: int,
-    log_interval: int,
-    writer: SummaryWriter,
+        epoch: int,
+        batch_idx: int,
+        running_loss: float,
+        len_trainset: int,
+        log_interval: int,
+        writer: SummaryWriter,
 ) -> None:
     """Log the training step.
 
@@ -479,18 +397,19 @@ def log_train(
 
 @logger.catch
 def log_eval(
-    epoch: int,
-    batch_idx: int,
-    model: torch.nn.Module,
-    optimizer: torch.optim.Optimizer,
-    loss: torch.nn.modules.loss._Loss,
-    train_dataloader: torch.utils.data.DataLoader,
-    test_dataloader: torch.utils.data.DataLoader,
-    gamma: float,
-    n_epochs: int,
-    device: torch.device,
-    writer: SummaryWriter,
-    run_name: str,
+        epoch: int,
+        batch_idx: int,
+        model: torch.nn.Module,
+        optimizer: torch.optim.Optimizer,
+        loss: torch.nn.modules.loss._Loss,
+        train_dataloader: torch.utils.data.DataLoader,
+        test_dataloader: torch.utils.data.DataLoader,
+        gamma: float,
+        n_epochs: int,
+        device: torch.device,
+        writer: SummaryWriter,
+        run_name: str,
+        checkpoint_dir: str,
 ) -> None:
     """Log the evaluation step.
 
@@ -507,6 +426,7 @@ def log_eval(
         device (torch.device): Device to use.
         writer (SummaryWriter): Writer for the logs.
         run_name (str): Name of the run.
+        checkpoint_dir (str): Directory to save the checkpoints.
 
     """
     if batch_idx == len(train_dataloader):
@@ -520,8 +440,12 @@ def log_eval(
         logger.info(f"Running eval on epoch {epoch}, batch {batch_idx}...")
         global_step = epoch * len(train_dataloader) + batch_idx
 
-    val_metrics, outputs, targets = validation(
+    outputs, targets = validation_values(
         model=model, test_dataloader=test_dataloader, gamma=gamma, device=device
+    )
+
+    val_metrics = validation(
+        outputs=outputs, targets=targets,
     )
 
     writer.add_histogram(
@@ -566,8 +490,8 @@ def log_eval(
 
     writer.close()
 
-    if not os.path.exists(f"./models_checkpoint/{run_name}"):
-        os.makedirs(f"./models_checkpoint/{run_name}")
+    if not os.path.exists(f"./{checkpoint_dir}/{run_name}"):
+        os.makedirs(f"./{checkpoint_dir}/{run_name}")
 
     torch.save(
         obj={
@@ -576,13 +500,13 @@ def log_eval(
             "optimizer_state_dict": optimizer.state_dict(),
             "loss": loss,
         },
-        f=f"./models_checkpoint/{run_name}/checkpoint_{global_step}.pt",
+        f=f"./{checkpoint_dir}/{run_name}/{CHECKPOINT_PREFIX}{global_step}.pt",
     )
 
 
 @logger.catch
 def log_testdata(
-    test_dataloader: torch.utils.data.DataLoader, gamma: float, writer: SummaryWriter
+        test_dataloader: torch.utils.data.DataLoader, gamma: float, writer: SummaryWriter
 ) -> None:
     """Log the test data.
 
@@ -608,3 +532,132 @@ def log_testdata(
     writer.add_histogram(
         tag="TestData/rewards_distribution", bins="auto", values=rewards, global_step=0
     )
+
+
+@logger.catch
+def training_loop(
+        model: torch.nn.Module,
+        optimizer: torch.optim.Optimizer,
+        loss: torch.nn.modules.loss._Loss,
+        gamma: float,
+        train_dataloader: torch.utils.data.DataLoader,
+        test_dataloader: torch.utils.data.DataLoader = None,
+        n_epochs: int = 1,
+        resume_step: int = 0,
+        device: torch.device = torch.device("cpu"),
+        log_sampling: float = 0.1,
+        eval_sampling: float = 1,
+        run_name: str = "default",
+        checkpoint_dir: str = "models_checkpoint",
+        log_dir: str = "runs",
+) -> None:
+    """Training loop for the model.
+
+    Args:
+        model (torch.nn.Module): Model to train.
+        optimizer (torch.optim.optimizer.Optimizer): Optimizer to use.
+        loss (torch.nn.modules.loss._Loss): Loss function to use.
+        gamma (float): Discount factor.
+        train_dataloader (torch.utils.data.DataLoader): Training dataloader.
+        n_epochs (int): Number of epochs.
+        resume_step (int): Step to resume from.
+        device (torch.device): Device to use.
+        test_dataloader (torch.utils.data.DataLoader): Testing dataloader.
+        log_sampling (float): Sampling rate for logging.
+        eval_sampling (float): Sampling rate for evaluation.
+        run_name (str): Name of the run.
+        checkpoint_dir (str): Directory to save the checkpoints.
+        log_dir (str): Directory to save the logs.
+
+    """
+    model.to(device)
+    model.train()
+
+    log_interval = int(len(train_dataloader) * log_sampling)
+    eval_interval = int(len(train_dataloader) * eval_sampling)
+
+    first_epoch = resume_step // len(train_dataloader)
+    first_batch = resume_step % len(train_dataloader)
+
+    writer = SummaryWriter(
+        log_dir=f"./{log_dir}/{run_name}",
+        purge_step=first_epoch * len(train_dataloader) + first_batch + 1,
+    )
+
+    log_testdata(test_dataloader=test_dataloader, gamma=gamma, writer=writer)
+
+    for epoch in tqdm(
+            iterable=range(first_epoch, n_epochs),
+            desc="Epochs",
+    ):
+        running_loss = 0.0
+
+        for batch_idx, batch in tqdm(
+                iterable=enumerate(iterable=train_dataloader, start=first_batch),
+                desc="Batches",
+                total=len(train_dataloader),
+        ):
+            if train_dataloader.dataset.return_moves:
+                boards, moves, outcomes = batch
+            else:
+                boards, outcomes = batch
+
+            boards = boards.to(device)
+            outcomes = outcomes.to(device)
+
+            outputs, targets = gradient_descent_values(
+                model=model, boards=boards, outcomes=outcomes, gamma=gamma
+            )
+
+            loss_value = training_step(
+                optimizer=optimizer, loss=loss, outputs=outputs, targets=targets
+            )
+
+            running_loss += loss_value
+
+            if batch_idx % log_interval == 0:
+                log_train(
+                    epoch=epoch,
+                    batch_idx=batch_idx,
+                    running_loss=running_loss,
+                    len_trainset=len(train_dataloader),
+                    log_interval=log_interval,
+                    writer=writer,
+                )
+                running_loss = 0.0
+
+            if batch_idx % eval_interval == 0 and test_dataloader is not None:
+                log_eval(
+                    epoch=epoch,
+                    batch_idx=batch_idx,
+                    model=model,
+                    optimizer=optimizer,
+                    loss=loss,
+                    train_dataloader=train_dataloader,
+                    test_dataloader=test_dataloader,
+                    gamma=gamma,
+                    n_epochs=n_epochs,
+                    device=device,
+                    writer=writer,
+                    run_name=run_name,
+                    checkpoint_dir=checkpoint_dir,
+                )
+
+        if test_dataloader is not None:
+            log_eval(
+                epoch=epoch,
+                batch_idx=len(train_dataloader),
+                model=model,
+                optimizer=optimizer,
+                loss=loss,
+                train_dataloader=train_dataloader,
+                test_dataloader=test_dataloader,
+                gamma=gamma,
+                n_epochs=n_epochs,
+                device=device,
+                writer=writer,
+                run_name=run_name,
+                checkpoint_dir=checkpoint_dir,
+            )
+
+    writer.close()

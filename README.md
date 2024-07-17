@@ -72,7 +72,7 @@ This project will be a great way to learn about chess engines, deep learning, an
   - [x] Logging & Tensorboard
   - [x] Evaluation
   - [x] Save & Load model
-  - [ ] Tests for training framework
+  - [x] Tests for training framework
 - [ ] Chess Engine
   - [x] Beam Search using the model
   - [ ] Evaluate against Stockfish
@@ -116,13 +116,13 @@ poetry run python -m profiling.profile dataset --n_test=10 --data_dir=data --sav
 ### Train a model
 
 ```sh
-poetry run python -m src.train.train rl run_name=run_name --dataset_num_workers=8 --dataloaders_num_workers=2 --train_size=0.9 --n_epochs=20 --batch_size=64 --lr=0.1 --gamma=0.99 --log_sampling=0.05 --eval_sampling=1.0
+poetry run python -m src.train.train rl --run_name=run_name --dataset_num_workers=8 --dataloaders_num_workers=2 --train_size=0.9 --n_epochs=20 --batch_size=64 --lr=0.1 --gamma=0.99 --log_sampling=0.05 --eval_sampling=1.0 --checkpoint_dir=checkpoints --log_dir=logdir
 ```
 
 ### Launch Tensorboard
 
 ```sh
-poetry run tensorboard --logdir=runs
+poetry run tensorboard --logdir=logdir
 ```
 
 ### Launch Gradio demo

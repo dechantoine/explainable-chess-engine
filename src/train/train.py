@@ -25,7 +25,9 @@ def cli():
 
 
 @click.command()
-@click.argument("run_name")
+@click.option("--run_name", required=True, help="Run name.")
+@click.option("--checkpoint_dir", default="models_checkpoint", help="Checkpoint directory.")
+@click.option("--log_dir", default="logs", help="Log directory.")
 @click.option("--dataset_num_workers", default=8, help="Python dataset number of workers.")
 @click.option("--dataloaders_num_workers", default=2, help="Torch Dataloaders number of workers.")
 @click.option("--train_size", default=0.9, help="Train size.")
@@ -36,6 +38,8 @@ def cli():
 @click.option("--log_sampling", default=0.05, help="Log every x fraction of epoch.")
 @click.option("--eval_sampling", default=1.0, help="Run and log eval every x fraction of epoch.")
 def rl(run_name,
+       checkpoint_dir,
+       log_dir,
        dataset_num_workers,
        dataloaders_num_workers,
        train_size,
@@ -56,6 +60,8 @@ def rl(run_name,
 
     model, optimizer, resume_step = init_training(
         run_name=run_name,
+        checkpoint_dir=checkpoint_dir,
+        log_dir=log_dir,
         model=model,
         optimizer=optimizer
     )
@@ -117,6 +123,8 @@ def rl(run_name,
         log_sampling=log_sampling,
         eval_sampling=eval_sampling,
         run_name=run_name,
+        checkpoint_dir=checkpoint_dir,
+        log_dir=log_dir,
     )
 
 
