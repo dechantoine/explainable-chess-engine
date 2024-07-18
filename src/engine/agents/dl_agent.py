@@ -2,8 +2,8 @@ import chess.pgn
 import numpy as np
 from anytree import LevelOrderGroupIter
 
-from src.agents.base_agent import BaseAgent
-from src.agents.policies import beam_search, eval_board
+from src.engine.agents.base_agent import BaseAgent
+from src.engine.agents.policies import beam_search, eval_board
 
 
 class DLAgent(BaseAgent):

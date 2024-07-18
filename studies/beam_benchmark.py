@@ -8,8 +8,8 @@ from anytree import LevelOrderGroupIter
 from loguru import logger
 from tqdm.contrib.concurrent import process_map
 
-from src.agents.policies import beam_search
 from src.data.data_utils import read_boards_from_pgn
+from src.engine.agents.policies import beam_search
 from src.models.simple_feed_forward import SimpleFF
 
 end_opening = 10

@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from anytree import AnyNode, LevelOrderGroupIter
 
-from src.agents.policies import (
+from src.engine.agents.policies import (
     beam_sampling,
     beam_search,
     eval_board,
