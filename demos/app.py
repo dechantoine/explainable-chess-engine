@@ -2,14 +2,13 @@ import os
 import sys
 
 import chess.pgn
-import chess.svg
 import gradio as gr
 import torch
 from loguru import logger
 
-from src.agents.policies import beam_search, eval_board
-from src.agents.viz_utils import plot_save_beam_search, save_svg
 from src.data.data_utils import clean_board
+from src.engine.agents.policies import beam_search, eval_board
+from src.engine.agents.viz_utils import plot_save_beam_search, save_svg
 from src.models.simple_feed_forward import SimpleFF
 
 # TEMP_DIR = "./demos/temp/"

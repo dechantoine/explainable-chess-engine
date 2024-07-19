@@ -3,8 +3,8 @@ import unittest
 import chess.pgn
 import torch
 
-from src.agents.dl_agent import DLAgent
-from src.agents.stockfish_agent import StockfishAgent
+from src.engine.agents.dl_agent import DLAgent
+from src.engine.agents.stockfish_agent import StockfishAgent
 
 
 class MockModel(torch.nn.Module):
