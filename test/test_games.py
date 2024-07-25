@@ -3,9 +3,10 @@ import unittest
 import chess.pgn
 import torch
 
+from src.engine.agents.base_agent import BaseAgent
 from src.engine.agents.dl_agent import DLAgent
 from src.engine.agents.stockfish_agent import StockfishAgent
-from src.engine.games import Game
+from src.engine.games import Game, Match
 
 
 class MockModel(torch.nn.Module):
@@ -73,6 +74,35 @@ class GameTestCase(unittest.TestCase):
 
         winner, termination, n_moves = game.play()
 
-        self.assertIsInstance(winner, bool)
+        self.assertIsInstance(winner, BaseAgent)
         self.assertIsInstance(termination, chess.Termination)
         self.assertIsInstance(n_moves, int)
+
+
+class MatchTestCase(unittest.TestCase):
+    def setUp(self):
+        model = MockModel()
+        self.stockfish_agent = StockfishAgent(is_white=True)
+        self.dl_agent = DLAgent(model=model, is_white=True)
+
+    def test_init(self):
+        with self.assertRaises(ValueError):
+            Match(player_1=self.stockfish_agent, player_2=self.dl_agent, n_games=0)
+
+        match = Match(player_1=self.stockfish_agent, player_2=self.dl_agent, n_games=10)
+        self.assertIsInstance(match.whites, list)
+        self.assertEqual(len(match.whites), 10)
+        self.assertCountEqual(match.whites, [self.stockfish_agent, self.dl_agent] * 5)
+        self.assertEqual(len(match.results), 0)
+
+        match = Match(player_1=self.stockfish_agent, player_2=self.dl_agent, n_games=11)
+        self.assertCountEqual(match.whites[:-1], [self.stockfish_agent, self.dl_agent] * 5)
+
+    def test_play(self):
+        match = Match(player_1=self.stockfish_agent, player_2=self.dl_agent, n_games=5)
+        match.play()
+
+        self.assertEqual(len(match.results), 5)
+        assert all(isinstance(match.results[i][0], BaseAgent) for i in range(5))
+        assert all(isinstance(match.results[i][1], chess.Termination) for i in range(5))
+        assert all(isinstance(match.results[i][2], int) for i in range(5))
