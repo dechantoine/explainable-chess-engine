@@ -28,3 +28,6 @@ class DLAgent(BaseAgent):
 
     def evaluate_board(self, board: chess.Board) -> float:
         return eval_board(self.model, board)
+
+    def __str__(self) -> str:
+        return "DLAgent"

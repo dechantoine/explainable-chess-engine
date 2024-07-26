@@ -15,3 +15,6 @@ class BaseAgent(ABC):
 
     def set_color(self, is_white: bool) -> None:
         self.is_white = is_white
+
+    def __str__(self) -> str:
+        pass
