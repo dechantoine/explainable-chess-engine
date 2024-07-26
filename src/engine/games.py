@@ -1,5 +1,7 @@
 import chess.pgn
 import numpy as np
+from tqdm import tqdm
+from tqdm.contrib.concurrent import process_map
 
 from src.engine.agents.base_agent import BaseAgent
 
@@ -55,13 +57,14 @@ class Game:
                 self.whites if self.current_player == self.blacks else self.blacks
             )
 
-    def play(self) -> (BaseAgent, chess.Termination, int):
+    def play(self) -> (BaseAgent, chess.Termination, int, list[chess.Move]):
         """Play the game with current player until termination.
 
         Returns:
             winner (BaseAgent): the winning Agent of the game or None if drawn
             termination (str): the termination reason
             n_moves (int): the number of half moves of the game
+            move_stack (list[chess.move]): moves played
 
         """
         outcome = self.board.outcome()
@@ -77,8 +80,9 @@ class Game:
             self.winner = self.blacks
 
         self.termination = outcome.termination
+        self.move_stack = self.board.move_stack
 
-        return self.winner, self.termination, self.n_moves
+        return self.winner, self.termination, self.n_moves, self.move_stack
 
 
 class Match:
@@ -109,7 +113,8 @@ class Match:
 
     def play(self) -> None:
         """Play the match."""
-        for white in self.whites:
+        for white in tqdm(iterable=self.whites,
+                          desc=f"Playing {self.n_games} games between {str(self.player_1)} and {str(self.player_2)}..."):
             white.set_color(is_white=True)
             if white == self.player_1:
                 self.player_2.set_color(is_white=False)
@@ -118,5 +123,31 @@ class Match:
 
             game = Game(player_1=self.player_1, player_2=self.player_2)
 
-            winner, termination, n_moves = game.play()
-            self.results.append((winner, termination, n_moves))
+            winner, termination, n_moves, move_stack = game.play()
+            self.results.append((winner, termination, n_moves, move_stack))
+
+    def parallel_play(self) -> None:
+        """Play the match in parallel."""
+        outcomes = process_map(
+            star_play,
+            [(white, self.player_1, self.player_2) for white in self.whites],
+            max_workers=8,
+            chunksize=max(1, len(self.whites) // 100),
+            desc=f"Playing {self.n_games} games between {str(self.player_1)} and {str(self.player_2)}...",
+        )
+
+        self.results = outcomes
+
+
+def star_play(args: tuple) -> tuple:
+    """Prepare the arguments for the play method."""
+    white = args[0]
+    white.set_color(is_white=True)
+    if args[0] == args[1]:
+        black = args[2]
+    else:
+        black = args[1]
+    black.set_color(is_white=False)
+
+    game = Game(player_1=white, player_2=black)
+    return game.play()
