@@ -20,6 +20,9 @@ class MockModel(torch.nn.Module):
         x = self.flatten(x)
         return self.linear(x)
 
+    def model_hash(self):
+        return "mock_model"
+
 
 class GameTestCase(unittest.TestCase):
     def setUp(self):
@@ -73,8 +76,9 @@ class GameTestCase(unittest.TestCase):
         dl_agent = DLAgent(model=self.model, is_white=False)
         game = Game(player_1=stockfish_agent, player_2=dl_agent, board=None)
 
-        winner, termination, n_moves, move_stack = game.play()
+        result, winner, termination, n_moves, move_stack = game.play()
 
+        self.assertIsInstance(result, str)
         self.assertIsInstance(winner, BaseAgent)
         self.assertIsInstance(termination, chess.Termination)
         self.assertIsInstance(n_moves, int)
@@ -105,16 +109,34 @@ class MatchTestCase(unittest.TestCase):
         match.play()
 
         self.assertEqual(len(match.results), 5)
-        assert all(isinstance(match.results[i][0], BaseAgent) for i in range(5))
-        assert all(isinstance(match.results[i][1], chess.Termination) for i in range(5))
-        assert all(isinstance(match.results[i][2], int) for i in range(5))
-        assert all(isinstance(match.results[i][3], list) for i in range(5))
+        assert all(isinstance(match.results[i][0], str) for i in range(5))
+        assert all(isinstance(match.results[i][1], BaseAgent) for i in range(5))
+        assert all(isinstance(match.results[i][2], chess.Termination) for i in range(5))
+        assert all(isinstance(match.results[i][3], int) for i in range(5))
+        assert all(isinstance(match.results[i][4], list) for i in range(5))
 
     def test_parallel_play(self):
         match = Match(player_1=self.stockfish_agent, player_2=self.dl_agent, n_games=5)
         match.parallel_play()
 
         self.assertEqual(len(match.results), 5)
-        assert all(isinstance(match.results[i][0], BaseAgent) for i in range(5))
-        assert all(isinstance(match.results[i][1], chess.Termination) for i in range(5))
-        assert all(isinstance(match.results[i][2], int) for i in range(5))
+        assert all(isinstance(match.results[i][0], str) for i in range(5))
+        assert all(isinstance(match.results[i][1], BaseAgent) for i in range(5))
+        assert all(isinstance(match.results[i][2], chess.Termination) for i in range(5))
+        assert all(isinstance(match.results[i][3], int) for i in range(5))
+        assert all(isinstance(match.results[i][4], list) for i in range(5))
+
+
+    def test_save_pgn(self):
+        match = Match(player_1=self.stockfish_agent, player_2=self.dl_agent, n_games=2)
+        match.play()
+        match.save("test/test.pgn")
+
+        pgn_match = open("test/test.pgn")
+        first_game = chess.pgn.read_game(pgn_match)
+        second_game = chess.pgn.read_game(pgn_match)
+        self.assertIsInstance(first_game, chess.pgn.Game)
+        self.assertIsInstance(second_game, chess.pgn.Game)
+
+        third_game = chess.pgn.read_game(pgn_match)
+        self.assertIsNone(third_game)
