@@ -30,4 +30,4 @@ class DLAgent(BaseAgent):
         return eval_board(self.model, board)
 
     def __str__(self) -> str:
-        return "DLAgent"
+        return f"DLAgent-{self.model.model_hash()}"
