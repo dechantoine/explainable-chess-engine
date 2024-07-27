@@ -103,7 +103,7 @@ class Match:
         self.n_games = n_games
 
         rng = np.random.default_rng()
-        self.whites = np.array([player_1, player_2] * (n_games//2))
+        self.whites = np.array([player_1, player_2] * (n_games // 2))
         rng.shuffle(self.whites)
         if n_games % 2 == 1:
             self.whites = np.append(self.whites, np.random.choice(a=[player_1, player_2], size=1))
@@ -126,14 +126,19 @@ class Match:
             winner, termination, n_moves, move_stack = game.play()
             self.results.append((winner, termination, n_moves, move_stack))
 
-    def parallel_play(self) -> None:
-        """Play the match in parallel."""
+    def parallel_play(self, max_workers: int = 8) -> None:
+        """Play the match in parallel.
+
+        Args:
+            max_workers (int): number of workers to use
+
+        """
         outcomes = process_map(
             star_play,
             [(white, self.player_1, self.player_2) for white in self.whites],
-            max_workers=8,
+            max_workers=max_workers,
             chunksize=max(1, len(self.whites) // 100),
-            desc=f"Playing {self.n_games} games between {str(self.player_1)} and {str(self.player_2)}...",
+            desc=f"Playing {self.n_games} games between {str(self.player_1)} and {str(self.player_2)} in parallel...",
         )
 
         self.results = outcomes
