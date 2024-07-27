@@ -1,3 +1,5 @@
+import datetime
+
 import chess.pgn
 import numpy as np
 from tqdm import tqdm
@@ -57,10 +59,11 @@ class Game:
                 self.whites if self.current_player == self.blacks else self.blacks
             )
 
-    def play(self) -> (BaseAgent, chess.Termination, int, list[chess.Move]):
+    def play(self) -> (str, BaseAgent, chess.Termination, int, list[chess.Move]):
         """Play the game with current player until termination.
 
         Returns:
+            result (str): the result in pgn format
             winner (BaseAgent): the winning Agent of the game or None if drawn
             termination (str): the termination reason
             n_moves (int): the number of half moves of the game
@@ -82,7 +85,7 @@ class Game:
         self.termination = outcome.termination
         self.move_stack = self.board.move_stack
 
-        return self.winner, self.termination, self.n_moves, self.move_stack
+        return outcome.result(), self.winner, self.termination, self.n_moves, self.move_stack
 
 
 class Match:
@@ -123,8 +126,8 @@ class Match:
 
             game = Game(player_1=self.player_1, player_2=self.player_2)
 
-            winner, termination, n_moves, move_stack = game.play()
-            self.results.append((winner, termination, n_moves, move_stack))
+            result, winner, termination, n_moves, move_stack = game.play()
+            self.results.append((result, winner, termination, n_moves, move_stack))
 
     def parallel_play(self, max_workers: int = 8) -> None:
         """Play the match in parallel.
@@ -142,6 +145,37 @@ class Match:
         )
 
         self.results = outcomes
+
+    def save(self, filename: str) -> None:
+        """Save the results of the match to a PGN file.
+
+        Args:
+            filename (str): the name of the file
+
+        """
+        # ensure that the file is empty
+        open(filename, "w").close()
+
+        for i, white in enumerate(self.whites):
+            black = self.player_1 if white == self.player_2 else self.player_2
+
+            board = chess.Board()
+            for move in self.results[i][4]:
+                board.push(move)
+
+            pgn = chess.pgn.Game.from_board(board)
+            pgn.headers["Event"] = f"Match between {str(self.player_1)} and {str(self.player_2)}"
+            pgn.headers["Site"] = ""
+            pgn.headers["Date"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            pgn.headers["Round"] = str(i + 1)
+            pgn.headers["White"] = str(white)
+            pgn.headers["Black"] = str(black)
+            pgn.headers["Result"] = self.results[i][0]
+            pgn.headers["WhiteElo"] = str(white.elo) if hasattr(white, "elo") else "?"
+            pgn.headers["BlackElo"] = str(black.elo) if hasattr(black, "elo") else "?"
+
+            with open(filename, "a") as f:
+                f.write(str(pgn) + "\n\n")
 
 
 def star_play(args: tuple) -> tuple:
