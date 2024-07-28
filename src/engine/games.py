@@ -38,6 +38,8 @@ class Game:
 
         self.n_moves = self.board.ply()
 
+        self.result = {}
+
     def forward_one_half_move(self) -> None:
         """Play one half move forward."""
         move = self.current_player.next_move(self.board)
@@ -63,11 +65,7 @@ class Game:
         """Play the game with current player until termination.
 
         Returns:
-            result (str): the result in pgn format
-            winner (BaseAgent): the winning Agent of the game or None if drawn
-            termination (str): the termination reason
-            n_moves (int): the number of half moves of the game
-            move_stack (list[chess.move]): moves played
+            result (dict): dict containing all game information
 
         """
         outcome = self.board.outcome()
@@ -75,17 +73,20 @@ class Game:
             self.forward_one_half_move()
             outcome = self.board.outcome()
 
+        self.result["result"] = outcome.result()
+
         if outcome.winner:
-            self.winner = self.whites
+            self.result["winner"] = str(self.whites)
         elif outcome.winner is None:
-            self.winner = None
+            self.result["winner"] = None
         else:
-            self.winner = self.blacks
+            self.result["winner"] = str(self.blacks)
 
-        self.termination = outcome.termination
-        self.move_stack = self.board.move_stack
+        self.result["termination"] = outcome.termination
+        self.result["move_stack"] = self.board.move_stack
+        self.result["n_moves"] = self.n_moves
 
-        return outcome.result(), self.winner, self.termination, self.n_moves, self.move_stack
+        return self.result
 
 
 class Match:
@@ -126,8 +127,8 @@ class Match:
 
             game = Game(player_1=self.player_1, player_2=self.player_2)
 
-            result, winner, termination, n_moves, move_stack = game.play()
-            self.results.append((result, winner, termination, n_moves, move_stack))
+            result = game.play()
+            self.results.append(result)
 
     def parallel_play(self, max_workers: int = 8) -> None:
         """Play the match in parallel.
@@ -160,7 +161,7 @@ class Match:
             black = self.player_1 if white == self.player_2 else self.player_2
 
             board = chess.Board()
-            for move in self.results[i][4]:
+            for move in self.results[i]["move_stack"]:
                 board.push(move)
 
             pgn = chess.pgn.Game.from_board(board)
@@ -170,7 +171,7 @@ class Match:
             pgn.headers["Round"] = str(i + 1)
             pgn.headers["White"] = str(white)
             pgn.headers["Black"] = str(black)
-            pgn.headers["Result"] = self.results[i][0]
+            pgn.headers["Result"] = self.results[i]["result"]
             pgn.headers["WhiteElo"] = str(white.elo) if hasattr(white, "elo") else "?"
             pgn.headers["BlackElo"] = str(black.elo) if hasattr(black, "elo") else "?"
 
