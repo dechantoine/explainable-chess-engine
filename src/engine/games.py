@@ -6,6 +6,7 @@ from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
 from src.engine.agents.base_agent import BaseAgent
+from src.engine.agents.stockfish_agent import StockfishAgent
 
 
 class Game:
@@ -191,3 +192,71 @@ def star_play(args: tuple) -> tuple:
 
     game = Game(player_1=white, player_2=black)
     return game.play()
+
+
+class EloEvaluator:
+    def __init__(self, player: BaseAgent, resolution: int = 50, stockfish_min_elo: int = 1300,
+                 parallel: bool = True) -> None:
+        """Initialize the EloEvaluator with a player to evaluate.
+
+        Args:
+            player(BaseAgent): the player to evaluate
+            resolution (int): the resolution of the Elo rating
+            stockfish_min_elo (int): the minimum Elo rating of Stockfish
+            parallel (bool): whether to play matches in parallel
+
+        """
+        self.player_1 = player
+        self.resolution = resolution
+        self.parallel = parallel
+        self.elo = None
+        self.current_stockfish = stockfish_min_elo
+        self.matches = {}
+
+    def _play_match(self, n_games: int = 5) -> float:
+        """Play a match between the player and Stockfish.
+
+        Args:
+            n_games (int): the number of games to play
+
+        Returns:
+            win_rate (float): the win rate of the player
+
+        """
+        stockfish = StockfishAgent(is_white=False, elo=self.current_stockfish)
+        match = Match(player_1=self.player_1, player_2=stockfish, n_games=n_games)
+        match.parallel_play() if self.parallel else match.play()
+
+        results = [r["winner"] for r in match.results]
+        win_rate = sum([1 if r[1] == str(self.player_1) else 0 for r in results]) / len(results)
+        self.matches[self.current_stockfish] = {"match": match,
+                                                "win_rate": win_rate}
+
+        return win_rate
+
+    def _compute_elo(self) -> float:
+        """Compute the Elo rating of the player.
+
+        Returns:
+            elo (float): the Elo rating
+
+        """
+        last_win_rate = self.matches[self.current_stockfish]["win_rate"]
+        self.elo = self.current_stockfish - self.resolution * (1 - last_win_rate)
+        return self.elo
+
+    def evaluate(self) -> float:
+        """Evaluate the player's Elo rating.
+
+        Returns:
+            elo (float): the Elo rating
+
+        """
+        current_win_rate = 1
+        while current_win_rate > 0.5:
+            current_win_rate = self._play_match()
+            self.current_stockfish += self.resolution
+        self.current_stockfish -= self.resolution
+
+        self.elo = self._compute_elo()
+        return self.elo
