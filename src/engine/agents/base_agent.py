@@ -12,3 +12,9 @@ class BaseAgent(ABC):
 
     def evaluate_board(self, board: chess.Board) -> float:
         pass
+
+    def set_color(self, is_white: bool) -> None:
+        self.is_white = is_white
+
+    def __str__(self) -> str:
+        pass

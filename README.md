@@ -101,6 +101,8 @@ You need to have Python 3.11 installed on your machine.
    poetry install
    ```
 
+## Test package
+
 ### Run unit tests
 
 ```sh
@@ -112,6 +114,14 @@ poetry run python -m pytest
 ```sh
 poetry run python -m profiling.profile dataset --n_test=10 --data_dir=data --save_dir=profile
 ```
+
+### Visualize performance tests
+
+```sh
+poetry run snakeviz profile/dataset.prof
+```
+
+## Usage
 
 ### Train a model
 
@@ -130,6 +140,8 @@ poetry run tensorboard --logdir=logdir
 ```sh
 poetry run python -m demos.app
 ```
+
+## Deployment
 
 ### Deploy on HuggingFace Spaces
 
