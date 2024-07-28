@@ -55,28 +55,40 @@ This project will be a great way to learn about chess engines, deep learning, an
 
 - Build a Deep Learning framework optimized for training with chess data.
 - Monitor the performance of the training framework to optimize training time, CPU/GPU usage, and memory usage.
-- Build the best model with the minimal number of parameters.
+- Demonstrate proficiency in PyTorch, Tensorflow, Keras and Jax.
+- Build the best model with the minimal number of parameters for several ELO levels.
 - Create a human-readable explanation of the model's decisions.
 - Implement a chess engine that can play against human or AI players using the model.
 
 ### Roadmap
 
 - [x] Create the project structure
-- [x] Custom pytorch dataset for chess data
-  - [x] Read any board state at any game number in a PGN file
-  - [x] Convert board, moves and game result to tensor
-  - [x] Batch all operations
-  - [x] Tests
-- [x] Training loop & utilities for training
-  - [x] Training loop
-  - [x] Logging & Tensorboard
-  - [x] Evaluation
-  - [x] Save & Load model
-  - [x] Tests for training framework
-- [ ] Chess Engine
-  - [x] Beam Search using the model
-  - [ ] Evaluate against Stockfish
-  - [ ] Tests for the chess engine
+- [x] Pytorch Framework
+  - [x] Custom pytorch dataset for chess data
+    - [x] Read any board state at any game number in a PGN file
+    - [x] Convert board, moves and game result to tensor
+    - [x] Batch all operations
+    - [x] Tests
+  - [x] Training loop & utilities for training
+    - [x] Training loop
+    - [x] Logging & Tensorboard
+    - [x] Evaluation
+    - [x] Save & Load model
+    - [x] Tests for training framework
+- [ ] Tensorflow Framework
+  - [ ] Custom TFRecords for chess data
+    - [ ] Read any board state at any game number in a PGN file
+    - [ ] Convert board, moves and game result to tensor
+    - [ ] Batch all operations
+    - [ ] Tests
+- [x] Chess Engine
+  - [x] Beam Search using the DL models
+  - [x] Implement matches
+  - [x] Evaluate against Stockfish
+  - [x] Tests for the chess engine
+- [ ] Explainability
+  - [x] Beam Search visualization
+  - [ ] Board evaluation visualization
 - [ ] Deployment
   - [ ] Dockerize the project
   - [ ] Deploy on Lichess
@@ -113,6 +125,10 @@ poetry run python -m pytest
 
 ```sh
 poetry run python -m profiling.profile dataset --n_test=10 --data_dir=data --save_dir=profile
+```
+
+```sh
+poetry run python -m profiling.profile match --n_test=10 --save_dir=profile --max_workers=8
 ```
 
 ### Visualize performance tests
