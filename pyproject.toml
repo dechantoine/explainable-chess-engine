@@ -27,6 +27,7 @@ graphviz = "^0.20.3"
 gradio = "^4.36.0"
 huggingface-hub = "^0.23.3"
 stockfish = "^3.28.0"
+pyarrow = "^17.0.0"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^8.1.1"
