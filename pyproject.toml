@@ -44,12 +44,13 @@ more-itertools = "^10.2.0"
 loguru = "^0.7.2"
 cairosvg = "^2.7.1"
 
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
 [tool.pytest.ini_options]
 addopts = [
     "--import-mode=importlib",
 ]
-
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+log_cli = true
+log_cli_level = 'INFO'
