@@ -1,3 +1,4 @@
+import os
 import unittest
 
 import chess.pgn
@@ -91,6 +92,10 @@ class MatchTestCase(unittest.TestCase):
         model = MockModel()
         self.stockfish_agent = StockfishAgent(is_white=True)
         self.dl_agent = DLAgent(model=model, is_white=True)
+
+    def tearDown(self):
+        if os.path.exists("test/test.pgn"):
+            os.remove("test/test.pgn")
 
     def test_init(self):
         with self.assertRaises(ValueError):

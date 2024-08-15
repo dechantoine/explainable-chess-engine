@@ -139,6 +139,12 @@ poetry run snakeviz profile/dataset.prof
 
 ## Usage
 
+### Convert a directory of PGN files to a parquet dataset
+
+```sh
+poetry run python -m scripts.write_to_parquet process-directory --input_path=sample_data --output_path=parquet_data
+```
+
 ### Train a model
 
 ```sh

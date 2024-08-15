@@ -49,7 +49,7 @@ class StockfishAgent(BaseAgent):
         if board_eval["type"] == "cp":
             return board_eval["value"] / 100
         else:
-            return -1 if board_eval["value"] < 0 else 1
+            return -100 if board_eval["value"] < 0 else 100
 
     def __str__(self) -> str:
         return "StockfishAgent"

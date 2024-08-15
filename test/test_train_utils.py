@@ -1,4 +1,5 @@
 import os
+import shutil
 import sys
 import unittest
 
@@ -93,11 +94,10 @@ class TrainUtilsTestCase(unittest.TestCase):
         self.targets = np.array([[-0.1], [0.2], [0.5]])
 
     def tearDown(self):
-        for i in range(10):
-            if os.path.exists(f"{test_checkpoint_dir}/{self.run_name}/{CHECKPOINT_PREFIX}{i}.pt"):
-                os.remove(f"{test_checkpoint_dir}/{self.run_name}/{CHECKPOINT_PREFIX}{i}.pt")
-        os.rmdir(os.path.join(test_checkpoint_dir, self.run_name))
-        os.rmdir(test_checkpoint_dir)
+        if os.path.exists(test_checkpoint_dir):
+            shutil.rmtree(test_checkpoint_dir)
+        if os.path.exists(test_log_dir):
+            shutil.rmtree(test_log_dir)
 
     def test_train_test_split(self):
         train_set, test_set = train_test_split(self.dataset, seed=42, train_size=0.8)

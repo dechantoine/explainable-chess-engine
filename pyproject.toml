@@ -27,6 +27,7 @@ graphviz = "^0.20.3"
 gradio = "^4.36.0"
 huggingface-hub = "^0.23.3"
 stockfish = "^3.28.0"
+pyarrow = "^17.0.0"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^8.1.1"
@@ -43,12 +44,13 @@ more-itertools = "^10.2.0"
 loguru = "^0.7.2"
 cairosvg = "^2.7.1"
 
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
 [tool.pytest.ini_options]
 addopts = [
     "--import-mode=importlib",
 ]
-
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+log_cli = true
+log_cli_level = 'INFO'
