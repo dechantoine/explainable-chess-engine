@@ -11,13 +11,6 @@ import pyarrow.parquet as pq
 
 from src.data.data_utils import dict_pieces, format_board
 
-base_columns = ["white",
-                "black",
-                "active_color",
-                "castling",
-                "en_passant",
-                "half_moves",
-                "total_moves"]
 base_columns = (list(dict_pieces["white"]) +
                 list(dict_pieces["black"]) +
                 ["active_color",
@@ -26,6 +19,13 @@ base_columns = (list(dict_pieces["white"]) +
                  "half_moves",
                  "total_moves"])
 
+base_fields = ([pa.field(name=piece, type=pa.list_(pa.int64())) for piece in list(dict_pieces["white"])] +
+               [pa.field(name=piece, type=pa.list_(pa.int64())) for piece in list(dict_pieces["black"])]
+               + [pa.field(name="active_color", type=pa.int64()),
+                  pa.field(name="castling", type=pa.list_(pa.int64())),
+                  pa.field(name="en_passant", type=pa.int64()),
+                  pa.field(name="half_moves", type=pa.int64()),
+                  pa.field(name="total_moves", type=pa.int64())])
 
 
 def board_to_list_index(board: chess.Board) -> list:
@@ -53,7 +53,10 @@ def board_to_list_index(board: chess.Board) -> list:
 
     en_passant = board.ep_square if board.ep_square else -1
 
-    return [idx_white, idx_black, active_color, castling, en_passant, board.halfmove_clock, board.fullmove_number]
+    list_indexes = idx_white + idx_black + [active_color] + [castling] + [en_passant] + [board.halfmove_clock] + [
+        board.fullmove_number]
+
+    return list_indexes
 
 
 def list_index_to_fen(idxs: list) -> str:
@@ -245,6 +248,12 @@ class ParquetChessDB:
 
         pq.write_to_dataset(table=pa.Table.from_pandas(df=df,
                                                        preserve_index=False),
+                            schema=pa.schema(fields=base_fields +
+                                                    [pa.field(name="winner", type=pa.int64()),
+                                                     pa.field(name="game_id", type=pa.int64()),
+                                                     pa.field(name="file_id", type=pa.string())] +
+                                                    [pa.field(name=col, type=pa.infer_type(values=df[col]))
+                                                     for col in funcs.keys()]),
                             root_path=self.path,
                             partition_cols=["file_id"],
                             basename_template="part_{i}.parquet")
@@ -263,7 +272,7 @@ class ParquetChessDB:
             funcs = {}
 
         df = pd.DataFrame(columns=base_columns
-                            + ["winner", "game_id", "file_id"])
+                                  + ["winner", "game_id", "file_id"])
         boards = []
 
         dir = os.listdir(directory)
@@ -280,6 +289,12 @@ class ParquetChessDB:
 
         pq.write_to_dataset(table=pa.Table.from_pandas(df=df,
                                                        preserve_index=False),
+                            schema=pa.schema(fields=base_fields +
+                                                    [pa.field(name="winner", type=pa.int64()),
+                                                     pa.field(name="game_id", type=pa.int64()),
+                                                     pa.field(name="file_id", type=pa.string())] +
+                                                    [pa.field(name=col, type=pa.infer_type(values=df[col]))
+                                                     for col in funcs.keys()]),
                             root_path=self.path,
                             partition_cols=["file_id"],
                             basename_template="part_{i}.parquet")
