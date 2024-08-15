@@ -18,6 +18,14 @@ base_columns = ["white",
                 "en_passant",
                 "half_moves",
                 "total_moves"]
+base_columns = (list(dict_pieces["white"]) +
+                list(dict_pieces["black"]) +
+                ["active_color",
+                 "castling",
+                 "en_passant",
+                 "half_moves",
+                 "total_moves"])
+
 
 
 def board_to_list_index(board: chess.Board) -> list:
@@ -58,7 +66,9 @@ def list_index_to_fen(idxs: list) -> str:
         str: FEN string.
 
     """
-    idx_white, idx_black, active_color, castling, en_passant, halfmove, fullmove = idxs
+    idx_white = idxs[:6]
+    idx_black = idxs[6:12]
+    active_color, castling, en_passant, halfmove, fullmove = idxs[12:]
     list_board = ["."] * 64
     for i, piece in enumerate(list(dict_pieces["white"])):
         for idx in idx_white[i]:
