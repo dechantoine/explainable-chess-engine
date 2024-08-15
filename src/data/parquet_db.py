@@ -45,6 +45,9 @@ def board_to_list_index(board: chess.Board) -> list:
                  for piece in list(dict_pieces["black"])]
 
     active_color = 1 * (board.turn == chess.WHITE)
+    idx_white = [idx if len(idx) > 0 else None for idx in idx_white]
+    idx_black = [idx if len(idx) > 0 else None for idx in idx_black]
+
 
     castling = [board.has_kingside_castling_rights(chess.WHITE) * 1,
                 board.has_queenside_castling_rights(chess.WHITE) * 1,
@@ -74,11 +77,13 @@ def list_index_to_fen(idxs: list) -> str:
     active_color, castling, en_passant, halfmove, fullmove = idxs[12:]
     list_board = ["."] * 64
     for i, piece in enumerate(list(dict_pieces["white"])):
-        for idx in idx_white[i]:
-            list_board[idx] = piece
+        if idx_white[i]:
+            for idx in idx_white[i]:
+                list_board[idx] = piece
     for i, piece in enumerate(list(dict_pieces["black"])):
-        for idx in idx_black[i]:
-            list_board[idx] = piece
+        if idx_black[i]:
+            for idx in idx_black[i]:
+                list_board[idx] = piece
     for k in range(7):
         list_board.insert(8 * (k + 1) + k, "/")
 
