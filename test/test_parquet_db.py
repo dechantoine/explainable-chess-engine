@@ -18,21 +18,41 @@ def lambda_func_board(boards: list[chess.Board]) -> list[float]:
 class ParquetChessDBTestCase(unittest.TestCase):
 
     def setUp(self):
-        self.fen = "rn1q1rk1/pb1pbppp/1p2pn2/2p5/3P4/2P2NP1/PP1NPPBP/R1BQR1K1 b - - 5 8"
-        self.list_index = [[[56, 60], [45, 51], [54, 58], [59], [62], [35, 42, 46, 48, 49, 52, 53, 55]],
-                           [[0, 5], [1, 21], [9, 12], [3], [6], [8, 11, 13, 14, 15, 17, 20, 26]],
+        self.fen = "6k1/5ppp/3qp3/p2n4/P1pP4/1rP3P1/5P1P/RNQ3K1 b - - 4 28"
+        self.list_index = [[56],
+                           [57],
+                           None,
+                           [58],
+                           [62],
+                           [32, 35, 42, 46, 53, 55],
+                           [41],
+                           [27],
+                           None,
+                           [19],
+                           [6],
+                           [13, 14, 15, 20, 24, 34],
                            0,
                            [0, 0, 0, 0],
                            -1,
-                           5,
-                           8]
-        self.list_index_read = [[[56, 63], [45], [34, 58], [59], [60], [43, 48, 49, 50, 53, 54, 55]],
-                                [[0, 7], [1], [26, 29], [21], [4], [8, 9, 10, 14, 15, 28]],
+                           4,
+                           28]
+        self.list_index_read = [[53, 56],
+                                None,
+                                [36, 44],
+                                [41],
+                                [62],
+                                [18, 42, 43, 45, 54, 55],
+                                [6, 14],
+                                [17],
+                                [10],
+                                [21],
+                                [2],
+                                [9, 23, 28],
                                 0,
-                                [1, 1, 1, 1],
+                                [0, 0, 0, 0],
                                 -1,
-                                1,
-                                8]
+                                2,
+                                25]
         self.board = chess.Board(fen=self.fen)
 
         self.db = ParquetChessDB(test_db_dir)
@@ -102,7 +122,7 @@ class ParquetChessDBTestCase(unittest.TestCase):
         self.db.add_directory(directory=test_data_dir)
         board = self.db.read_board(file_id="Morphy.pgn",
                                    game_number=0,
-                                   full_move_number=8,
+                                   full_move_number=25,
                                    active_color=0)
 
         self.assertEqual(board, self.list_index_read)
@@ -127,8 +147,4 @@ class ParquetChessDBTestCase(unittest.TestCase):
                                                pc.field("winner") == 1],
                                       columns=None)
         self.assertEqual(len(indexes), 547)
-        assert all([len(i) == 7 for i in indexes])
-        assert all([len(i[0]) == 6 for i in indexes])
-        assert all([len(i[1]) == 6 for i in indexes])
-        assert all([i[2] in [-1, 0, 1] for i in indexes])
-        assert all([len(i[3]) == 4 for i in indexes])
+        assert all([len(i) == 17 for i in indexes])
