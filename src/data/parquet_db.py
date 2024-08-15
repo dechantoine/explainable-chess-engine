@@ -8,6 +8,8 @@ import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.dataset as ds
 import pyarrow.parquet as pq
+from loguru import logger
+from tqdm import tqdm
 
 from src.data.data_utils import dict_pieces, format_board
 
@@ -44,10 +46,10 @@ def board_to_list_index(board: chess.Board) -> list:
     idx_black = [np.flatnonzero([1 * (p == piece) for p in list_board]).tolist()
                  for piece in list(dict_pieces["black"])]
 
-    active_color = 1 * (board.turn == chess.WHITE)
     idx_white = [idx if len(idx) > 0 else None for idx in idx_white]
     idx_black = [idx if len(idx) > 0 else None for idx in idx_black]
 
+    active_color = 1 * (board.turn == chess.WHITE)
 
     castling = [board.has_kingside_castling_rights(chess.WHITE) * 1,
                 board.has_queenside_castling_rights(chess.WHITE) * 1,
@@ -177,6 +179,7 @@ def process_games_for_parquet(game: chess.pgn) -> tuple[pd.DataFrame, list[chess
 
     return df_game, boards
 
+
 def process_pgn_for_parquet(filepath: str) -> tuple[pd.DataFrame, list[chess.Board]]:
     """Process a PGN file for the parquet database.
 
@@ -233,7 +236,6 @@ class ParquetChessDB:
                                   format="parquet",
                                   partitioning="hive")
 
-
     def add_pgn(self, filepath: str, funcs: dict = None) -> None:
         """Add a PGN file to the parquet database.
 
@@ -243,12 +245,15 @@ class ParquetChessDB:
              file.
 
         """
+        logger.info("Adding PGN file to ParquetChessDB...")
+
         if not funcs:
             funcs = {}
 
         df, boards = process_pgn_for_parquet(filepath)
 
         for col, func in funcs.items():
+            logger.info(f"Applying function {col} to boards.")
             df[col] = func(boards)
 
         pq.write_to_dataset(table=pa.Table.from_pandas(df=df,
@@ -264,6 +269,8 @@ class ParquetChessDB:
                             basename_template="part_{i}.parquet")
 
         self._load()
+
+        logger.info("PGN file added.")
 
     def add_directory(self, directory: str, funcs: dict = None) -> None:
         """Add a directory of PGN files to the parquet database.
@@ -273,6 +280,8 @@ class ParquetChessDB:
         file.
 
         """
+        logger.info("Adding directory to ParquetChessDB...")
+
         if not funcs:
             funcs = {}
 
@@ -282,7 +291,8 @@ class ParquetChessDB:
 
         dir = os.listdir(directory)
         dir.sort()
-        for file in dir:
+        for file in tqdm(iterable=dir,
+                         desc="Processing PGN files..."):
             if file.endswith(".pgn"):
                 file_path = os.path.join(directory, file)
                 df_file, boards_file = process_pgn_for_parquet(file_path)
@@ -290,6 +300,7 @@ class ParquetChessDB:
                 boards += boards_file
 
         for col, func in funcs.items():
+            logger.info(f"Applying function {col} to boards.")
             df[col] = func(boards)
 
         pq.write_to_dataset(table=pa.Table.from_pandas(df=df,
@@ -305,6 +316,8 @@ class ParquetChessDB:
                             basename_template="part_{i}.parquet")
 
         self._load()
+
+        logger.info("Directory added.")
 
     def list_files(self) -> list[str]:
         """List the files in the parquet database.
@@ -315,7 +328,8 @@ class ParquetChessDB:
         """
         return self.dataset.files
 
-    def read_board(self, file_id: str, game_number: int = 0, full_move_number: int = 0, active_color: int = 0, columns: list = None) -> list:
+    def read_board(self, file_id: str, game_number: int = 0, full_move_number: int = 0, active_color: int = 0,
+                   columns: list = None) -> list:
         """Read a board from the parquet database.
 
         Args:
