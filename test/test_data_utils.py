@@ -4,8 +4,11 @@ import chess
 import numpy as np
 
 from src.data.data_utils import (
+    board_to_list_index,
     board_to_tensor,
     format_board,
+    list_index_to_fen,
+    list_index_to_tensor,
     moves_to_tensor,
     read_boards_from_pgn,
     result_to_tensor,
@@ -18,6 +21,24 @@ class DataUtilsTestCase(unittest.TestCase):
     def setUp(self):
         self.pgn_path = "test/test_data/Najdorf.pgn"
         self.len_moves_najdorf = [73, 58, 44, 87]
+        self.fen = "6k1/5ppp/3qp3/p2n4/P1pP4/1rP3P1/5P1P/RNQ3K1 b - - 4 28"
+        self.list_index = [[56],
+                           [57],
+                           None,
+                           [58],
+                           [62],
+                           [32, 35, 42, 46, 53, 55],
+                           [41],
+                           [27],
+                           None,
+                           [19],
+                           [6],
+                           [13, 14, 15, 20, 24, 34],
+                           0,
+                           [0, 0, 0, 0],
+                           -1,
+                           4,
+                           28]
 
     def test_format_board(self):
         board = chess.Board()
@@ -33,6 +54,27 @@ class DataUtilsTestCase(unittest.TestCase):
 
         assert isinstance(board, np.ndarray)
         assert board.shape == (6, 8, 8)
+
+    def test_board_to_list_index(self):
+        board = chess.Board(fen=self.fen)
+        list_index = board_to_list_index(board)
+
+        self.assertEqual(list_index, self.list_index)
+
+    def test_list_index_to_fen(self):
+        fen = list_index_to_fen(self.list_index)
+
+        self.assertEqual(fen, self.fen)
+
+    def test_list_index_to_tensor(self):
+        t_board = list_index_to_tensor(self.list_index)
+
+        self.assertIsInstance(t_board, np.ndarray)
+
+        self.assertEqual(t_board.shape, (12, 8, 8))
+
+        board = chess.Board(fen=self.fen)
+        assert np.array_equal(t_board, board_to_tensor(board))
 
     def test_uci_to_coordinates(self):
         move = chess.Move.from_uci("e2e4")
@@ -79,7 +121,6 @@ class DataUtilsTestCase(unittest.TestCase):
         assert isinstance(tensor, np.ndarray)
         assert tensor.shape == (1,)
         assert tensor.dtype == np.int8
-
 
     def test_read_boards_from_pgn(self):
         boards = read_boards_from_pgn(pgn_file=self.pgn_path)
