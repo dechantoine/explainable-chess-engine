@@ -1,17 +1,20 @@
 import os
+import shutil
 from cProfile import Profile
 from pstats import SortKey, Stats
 
 import click
 import torch
 
+from src.data.parquet_dataset import ParquetChessDataset
+from src.data.parquet_db import ParquetChessDB
 from src.data.pgn_dataset import PGNDataset
 from src.engine.agents.dl_agent import DLAgent
 from src.engine.agents.stockfish_agent import StockfishAgent
 from src.engine.games import Match
 
 
-class ChessBoardProfiling:
+class PGNDatasetProfiling:
     def __init__(self, data_dir, n_test=100):
         self.dataset = None
         self.n_test = n_test
@@ -35,6 +38,27 @@ class ChessBoardProfiling:
     def retrieve_board(self):
         for i in range(self.n_test):
             _, _, _, _ = self.dataset.retrieve_board(0)
+
+    def getitems(self):
+        for i in range(self.n_test):
+            _ = self.dataset.__getitems__(list(range(64)))
+
+
+class ParquetDatasetProfiling:
+    def __init__(self, data_dir, n_test=100):
+        self.path_parquet = "profile_package/parquet_data"
+        self.db = ParquetChessDB(path=self.path_parquet)
+        self.db.add_directory(directory=data_dir)
+
+        self.dataset = None
+        self.n_test = n_test
+        self.data_dir = data_dir
+
+    def init(self):
+        self.dataset = ParquetChessDataset(
+            path=self.path_parquet,
+            stockfish_eval=False,
+        )
 
     def getitems(self):
         for i in range(self.n_test):
@@ -74,11 +98,11 @@ def cli():
 
 
 @click.command()
-@click.option("--save_dir", default="profile_package/profile_dataset", help="Directory to save profiling results.")
+@click.option("--save_dir", default="profile_package/profile_pgn_dataset", help="Directory to save profiling results.")
 @click.option("--data_dir", default="profile_package/profile_data", help="Directory containing the dataset.")
 @click.option("--n_test", default=100, help="Number of tests to run.")
-def dataset(data_dir, save_dir, n_test):
-    chess_profiling = ChessBoardProfiling(data_dir=data_dir, n_test=n_test)
+def pgn_dataset(data_dir, save_dir, n_test):
+    chess_profiling = PGNDatasetProfiling(data_dir=data_dir, n_test=n_test)
 
     os.makedirs(save_dir, exist_ok=True)
 
@@ -116,6 +140,33 @@ def dataset(data_dir, save_dir, n_test):
 
 
 @click.command()
+@click.option("--save_dir", default="profile_package/profile_parquet_dataset", help="Directory to save profiling results.")
+@click.option("--data_dir", default="profile_package/profile_data", help="Directory containing the dataset.")
+@click.option("--n_test", default=100, help="Number of tests to run.")
+def parquet_dataset(data_dir, save_dir, n_test):
+    chess_profiling = ParquetDatasetProfiling(data_dir=data_dir, n_test=n_test)
+
+    os.makedirs(save_dir, exist_ok=True)
+
+    with Profile() as profiler:
+        profiler.runcall(chess_profiling.init)
+
+        stats = Stats(profiler)
+        stats.strip_dirs()
+        stats.sort_stats(SortKey.TIME)
+        stats.dump_stats(os.path.join(save_dir, "init.prof"))
+
+    with Profile() as profiler:
+        profiler.runcall(chess_profiling.getitems)
+
+        stats = Stats(profiler)
+        stats.strip_dirs()
+        stats.sort_stats(SortKey.TIME)
+        stats.dump_stats(os.path.join(save_dir, "getitems.prof"))
+
+    shutil.rmtree(chess_profiling.path_parquet)
+
+@click.command()
 @click.option("--save_dir", default="profile_package/profile_match", help="Directory to save profiling results.")
 @click.option("--n_test", default=100, help="Number of tests to run.")
 @click.option("--max_workers", default=8, help="Number of workers to use.")
@@ -142,6 +193,7 @@ def match(save_dir, n_test, max_workers):
 
 
 if __name__ == "__main__":
-    cli.add_command(dataset)
+    cli.add_command(pgn_dataset)
+    cli.add_command(parquet_dataset)
     cli.add_command(match)
     cli()

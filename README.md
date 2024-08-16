@@ -128,13 +128,13 @@ poetry run python -m profiling.profile dataset --n_test=10 --data_dir=data --sav
 ```
 
 ```sh
-poetry run python -m profiling.profile match --n_test=10 --save_dir=profile --max_workers=8
+poetry run python -m profiling.profile parquet-dataset --n_test=10 --save_dir=profile_package/profile_parquet_dataset --max_workers=8
 ```
 
 ### Visualize performance tests
 
 ```sh
-poetry run snakeviz profile/dataset.prof
+poetry run snakeviz profile_package/profile_parquet_dataset/getitems.prof
 ```
 
 ## Usage
