@@ -1,4 +1,5 @@
 import os
+from typing import Union
 
 import chess.pgn
 import pandas as pd
@@ -129,6 +130,18 @@ class ParquetChessDB:
 
         self._load()
 
+    def __len__(self) -> int:
+        return self.dataset.count_rows()
+
+    def get_columns(self) -> list[str]:
+        """Get the columns of the parquet database.
+
+        Returns:
+            list[str]: list of columns.
+
+        """
+        return self.dataset.schema.names
+
     def _load(self) -> None:
         """Load the parquet database."""
         self.dataset = ds.dataset(source=self.path,
@@ -174,8 +187,9 @@ class ParquetChessDB:
     def add_directory(self, directory: str, funcs: dict = None) -> None:
         """Add a directory of PGN files to the parquet database.
 
-        Args: directory (str): path to the directory containing the PGN files.
-        funcs (dict): dictionary of functions to apply to each board with the key being the column name in the parquet
+        Args:
+            directory (str): path to the directory containing the PGN files.
+            funcs (dict): dictionary of functions to apply to each board with the key being the column name in the parquet
         file.
 
         """
@@ -227,9 +241,18 @@ class ParquetChessDB:
         """
         return self.dataset.files
 
+    def schema(self) -> pa.Schema:
+        """Get the schema of the parquet database.
+
+        Returns:
+            pa.Schema: schema of the parquet database.
+
+        """
+        return self.dataset.schema
+
     def read_board(self, file_id: str, game_number: int = 0, full_move_number: int = 0, active_color: int = 0,
                    columns: list = None) -> list:
-        """Read a board from the parquet database.
+        """Read a unique board from the parquet database by file id, game number, full move number, and active color.
 
         Args:
             file_id (str): file id.
@@ -250,12 +273,12 @@ class ParquetChessDB:
                                                           pc.field("active_color") == active_color,
                                                           pc.field("total_moves") == full_move_number])
                                       )
-        indexes = arrays_to_lists(table.to_pandas().values[0])
+        indexes = arrays_to_lists(data=table.to_pandas().values[0])
 
         return indexes
 
     def read_boards(self, filters: list = None, columns: list = None) -> list:
-        """Read boards from the parquet database.
+        """Read boards from the parquet database with filters.
 
         Args:
             filters (list): filters to apply.
@@ -271,6 +294,28 @@ class ParquetChessDB:
         table = self.dataset.to_table(columns=columns,
                                       filter=and_filters(filters)
                                       )
-        indexes = arrays_to_lists(table.to_pandas().values)
+        indexes = arrays_to_lists(data=table.to_pandas().values)
+
+        return indexes
+
+    def take(self, indices: Union[int, list[int]], columns: list[str] = None) -> list:
+        """Read boards from the parquet database by indices.
+
+        Args:
+            indices (Union[int, list[int]]): indices to read.
+            columns (list[str]): columns to read.
+
+        Returns:
+            list: list of lists of indexes.
+
+        """
+        if isinstance(indices, int):
+            indices = [indices]
+
+        indexes = arrays_to_lists(
+            data=self.dataset.take(
+                indices=indices,
+                columns=columns
+            ).to_pandas().values)
 
         return indexes
