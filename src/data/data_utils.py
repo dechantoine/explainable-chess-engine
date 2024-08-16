@@ -188,6 +188,27 @@ def list_index_to_fen(idxs: list) -> str:
     fen = re.sub(r'\.+', lambda m: str(len(m.group())), fen)
     return fen
 
+
+def list_index_to_tensor(idxs: list) -> np.array:
+    """Convert a list of indexes to a tensor.
+
+    Args:
+        idxs (list): list of indexes.
+
+    Returns:
+        np.array: tensor.
+
+    """
+    tensor_pieces = np.zeros((12, 8 * 8), dtype=np.int8)
+    for i, list_idx in enumerate(idxs[:12]):
+        if list_idx:
+            for idx in list_idx:
+                tensor_pieces[i, idx] = 1
+    tensor_pieces = tensor_pieces.reshape((12, 8, 8))
+
+    return tensor_pieces
+
+
 @logger.catch
 def uci_to_coordinates(move: chess.Move) -> tuple:
     """Convert a move in UCI format to coordinates.
@@ -268,7 +289,7 @@ def batch_moves_to_tensor(batch_moves: list[list[chess.Move]]) -> np.array:
 
 @logger.catch
 def batch_boards_to_tensor(
-    batch_boards: list[chess.Board], from_compact_str: bool = False
+        batch_boards: list[chess.Board], from_compact_str: bool = False
 ) -> np.array:
     """Convert a batch of boards to a batch of board tensors.
 
