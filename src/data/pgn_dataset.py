@@ -22,7 +22,7 @@ from src.data.data_utils import (
 )
 
 
-class ChessBoardDataset(Dataset):
+class PGNDataset(Dataset):
     """Chess boards with legal moves dataset."""
 
     @logger.catch

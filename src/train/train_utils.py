@@ -9,7 +9,7 @@ from sklearn.model_selection import StratifiedShuffleSplit
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from src.data.dataset import ChessBoardDataset
+from src.data.pgn_dataset import PGNDataset
 from src.train.viz_utils import plot_bivariate_distributions
 
 CHECKPOINT_PREFIX = "checkpoint_"
@@ -33,19 +33,19 @@ def reward_fn(outcome: torch.Tensor, gamma: float = 0.99) -> torch.Tensor:
 
 @logger.catch
 def train_test_split(
-        dataset: ChessBoardDataset, seed: int, train_size: float, stratify=True
-) -> (ChessBoardDataset, ChessBoardDataset):
+        dataset: PGNDataset, seed: int, train_size: float, stratify=True
+) -> (PGNDataset, PGNDataset):
     """Split the provided dataset into a training and testing set.
 
     Args:
-        dataset (ChessBoardDataset): Dataset to split.
+        dataset (PGNDataset): Dataset to split.
         seed (int): Seed for the random split.
         train_size (float): Proportion of the training set.
         stratify (bool): Stratify the split based on the outcomes.
 
     Returns:
-        ChessBoardDataset: Training dataset.
-        ChessBoardDataset: Testing dataset.
+        PGNDataset: Training dataset.
+        PGNDataset: Testing dataset.
 
     """
     np.random.seed(seed)

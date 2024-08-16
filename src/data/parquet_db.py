@@ -1,8 +1,7 @@
 import os
-import re
+from typing import Union
 
 import chess.pgn
-import numpy as np
 import pandas as pd
 import pyarrow as pa
 import pyarrow.compute as pc
@@ -11,7 +10,7 @@ import pyarrow.parquet as pq
 from loguru import logger
 from tqdm import tqdm
 
-from src.data.data_utils import dict_pieces, format_board
+from src.data.data_utils import arrays_to_lists, board_to_list_index, dict_pieces
 
 base_columns = (list(dict_pieces["white"]) +
                 list(dict_pieces["black"]) +
@@ -28,86 +27,6 @@ base_fields = ([pa.field(name=piece, type=pa.list_(pa.int64())) for piece in lis
                   pa.field(name="en_passant", type=pa.int64()),
                   pa.field(name="half_moves", type=pa.int64()),
                   pa.field(name="total_moves", type=pa.int64())])
-
-
-def board_to_list_index(board: chess.Board) -> list:
-    """Convert a chess board to a list of indexes.
-
-    Args:
-        board (chess.Board): board to convert.
-
-    Returns:
-        list: list of indexes.
-
-    """
-    list_board = list(format_board(board))
-    idx_white = [np.flatnonzero([1 * (p == piece) for p in list_board]).tolist()
-                 for piece in list(dict_pieces["white"])]
-    idx_black = [np.flatnonzero([1 * (p == piece) for p in list_board]).tolist()
-                 for piece in list(dict_pieces["black"])]
-
-    idx_white = [idx if len(idx) > 0 else None for idx in idx_white]
-    idx_black = [idx if len(idx) > 0 else None for idx in idx_black]
-
-    active_color = 1 * (board.turn == chess.WHITE)
-
-    castling = [board.has_kingside_castling_rights(chess.WHITE) * 1,
-                board.has_queenside_castling_rights(chess.WHITE) * 1,
-                board.has_kingside_castling_rights(chess.BLACK) * 1,
-                board.has_queenside_castling_rights(chess.BLACK) * 1]
-
-    en_passant = board.ep_square if board.ep_square else -1
-
-    list_indexes = idx_white + idx_black + [active_color] + [castling] + [en_passant] + [board.halfmove_clock] + [
-        board.fullmove_number]
-
-    return list_indexes
-
-
-def list_index_to_fen(idxs: list) -> str:
-    """Convert a list of indexes to a FEN string.
-
-    Args:
-        idxs (list): list of indexes.
-
-    Returns:
-        str: FEN string.
-
-    """
-    idx_white = idxs[:6]
-    idx_black = idxs[6:12]
-    active_color, castling, en_passant, halfmove, fullmove = idxs[12:]
-    list_board = ["."] * 64
-    for i, piece in enumerate(list(dict_pieces["white"])):
-        if idx_white[i]:
-            for idx in idx_white[i]:
-                list_board[idx] = piece
-    for i, piece in enumerate(list(dict_pieces["black"])):
-        if idx_black[i]:
-            for idx in idx_black[i]:
-                list_board[idx] = piece
-    for k in range(7):
-        list_board.insert(8 * (k + 1) + k, "/")
-
-    active_color = "w" if active_color else "b"
-
-    str_castling = ["K" if castling[0] else "",
-                    "Q" if castling[1] else "",
-                    "k" if castling[2] else "",
-                    "q" if castling[3] else ""]
-    str_castling = "".join(str_castling)
-    str_castling = str_castling if str_castling else "-"
-
-    en_passant = chess.SQUARE_NAMES[en_passant] if en_passant != -1 else "-"
-
-    fen = ("".join(list_board) + " "
-           + active_color + " "
-           + str_castling + " "
-           + str(en_passant) + " "
-           + str(halfmove) + " "
-           + str(fullmove))
-    fen = re.sub(r'\.+', lambda m: str(len(m.group())), fen)
-    return fen
 
 
 def and_filters(filters: list) -> pc.Expression:
@@ -131,25 +50,6 @@ def and_filters(filters: list) -> pc.Expression:
         filter = filters[0]
 
     return filter
-
-
-def arrays_to_lists(data):
-    """Recursively transform all numpy arrays in a nested structure into lists.
-
-    Args:
-        data: The nested structure containing numpy arrays.
-
-    Returns:
-        The nested structure with all numpy arrays converted to lists.
-
-    """
-    if isinstance(data, np.ndarray):
-        data = data.tolist()
-        return [arrays_to_lists(item) for item in data]
-    elif isinstance(data, list):
-        return [arrays_to_lists(item) for item in data]
-    else:
-        return data
 
 
 def process_games_for_parquet(game: chess.pgn) -> tuple[pd.DataFrame, list[chess.Board]]:
@@ -230,6 +130,18 @@ class ParquetChessDB:
 
         self._load()
 
+    def __len__(self) -> int:
+        return self.dataset.count_rows()
+
+    def get_columns(self) -> list[str]:
+        """Get the columns of the parquet database.
+
+        Returns:
+            list[str]: list of columns.
+
+        """
+        return self.dataset.schema.names
+
     def _load(self) -> None:
         """Load the parquet database."""
         self.dataset = ds.dataset(source=self.path,
@@ -275,8 +187,9 @@ class ParquetChessDB:
     def add_directory(self, directory: str, funcs: dict = None) -> None:
         """Add a directory of PGN files to the parquet database.
 
-        Args: directory (str): path to the directory containing the PGN files.
-        funcs (dict): dictionary of functions to apply to each board with the key being the column name in the parquet
+        Args:
+            directory (str): path to the directory containing the PGN files.
+            funcs (dict): dictionary of functions to apply to each board with the key being the column name in the parquet
         file.
 
         """
@@ -328,9 +241,18 @@ class ParquetChessDB:
         """
         return self.dataset.files
 
+    def schema(self) -> pa.Schema:
+        """Get the schema of the parquet database.
+
+        Returns:
+            pa.Schema: schema of the parquet database.
+
+        """
+        return self.dataset.schema
+
     def read_board(self, file_id: str, game_number: int = 0, full_move_number: int = 0, active_color: int = 0,
                    columns: list = None) -> list:
-        """Read a board from the parquet database.
+        """Read a unique board from the parquet database by file id, game number, full move number, and active color.
 
         Args:
             file_id (str): file id.
@@ -351,12 +273,12 @@ class ParquetChessDB:
                                                           pc.field("active_color") == active_color,
                                                           pc.field("total_moves") == full_move_number])
                                       )
-        indexes = arrays_to_lists(table.to_pandas().values[0])
+        indexes = arrays_to_lists(data=table.to_pandas().values[0])
 
         return indexes
 
     def read_boards(self, filters: list = None, columns: list = None) -> list:
-        """Read boards from the parquet database.
+        """Read boards from the parquet database with filters.
 
         Args:
             filters (list): filters to apply.
@@ -372,6 +294,28 @@ class ParquetChessDB:
         table = self.dataset.to_table(columns=columns,
                                       filter=and_filters(filters)
                                       )
-        indexes = arrays_to_lists(table.to_pandas().values)
+        indexes = arrays_to_lists(data=table.to_pandas().values)
+
+        return indexes
+
+    def take(self, indices: Union[int, list[int]], columns: list[str] = None) -> list:
+        """Read boards from the parquet database by indices.
+
+        Args:
+            indices (Union[int, list[int]]): indices to read.
+            columns (list[str]): columns to read.
+
+        Returns:
+            list: list of lists of indexes.
+
+        """
+        if isinstance(indices, int):
+            indices = [indices]
+
+        indexes = arrays_to_lists(
+            data=self.dataset.take(
+                indices=indices,
+                columns=columns
+            ).to_pandas().values)
 
         return indexes

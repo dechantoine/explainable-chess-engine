@@ -4,7 +4,7 @@ from torch.nn import MSELoss
 from torch.optim import Adadelta
 from torch.utils.data import DataLoader
 
-from src.data.dataset import ChessBoardDataset
+from src.data.pgn_dataset import PGNDataset
 from src.models.simple_feed_forward import SimpleFF
 from src.train.train_utils import init_training, train_test_split, training_loop
 
@@ -71,7 +71,7 @@ def rl(run_name,
     )
 
     logger.info("Loading data.")
-    dataset = ChessBoardDataset(
+    dataset = PGNDataset(
         root_dir="./sample_data",
         transform=True,
         return_moves=False,

@@ -4,14 +4,14 @@ import numpy as np
 from chess import Board
 from torch import Tensor
 
-from src.data.dataset import ChessBoardDataset
+from src.data.pgn_dataset import PGNDataset
 
 test_data_dir = "test/test_data"
 
 
-class ChessBoardTestCase(unittest.TestCase):
+class PGNDatasetTestCase(unittest.TestCase):
     def setUp(self):
-        self.dataset = ChessBoardDataset(
+        self.dataset = PGNDataset(
             root_dir=test_data_dir,
             return_moves=False,
             return_outcome=False,
@@ -20,7 +20,7 @@ class ChessBoardTestCase(unittest.TestCase):
             in_memory=False,
         )
 
-        self.dataset_in_memory = ChessBoardDataset(
+        self.dataset_in_memory = PGNDataset(
             root_dir=test_data_dir,
             return_moves=False,
             return_outcome=False,
@@ -30,7 +30,7 @@ class ChessBoardTestCase(unittest.TestCase):
             num_workers=8,
         )
 
-        self.dataset_in_memory_return_moves = ChessBoardDataset(
+        self.dataset_in_memory_return_moves = PGNDataset(
             root_dir=test_data_dir,
             return_moves=True,
             return_outcome=False,
@@ -40,7 +40,7 @@ class ChessBoardTestCase(unittest.TestCase):
             num_workers=8,
         )
 
-        self.dataset_in_memory_return_outcome = ChessBoardDataset(
+        self.dataset_in_memory_return_outcome = PGNDataset(
             root_dir=test_data_dir,
             return_moves=False,
             return_outcome=True,
@@ -50,7 +50,7 @@ class ChessBoardTestCase(unittest.TestCase):
             num_workers=8,
         )
 
-        self.dataset_in_memory_return_both = ChessBoardDataset(
+        self.dataset_in_memory_return_both = PGNDataset(
             root_dir=test_data_dir,
             return_moves=True,
             return_outcome=True,
