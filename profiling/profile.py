@@ -5,7 +5,7 @@ from pstats import SortKey, Stats
 import click
 import torch
 
-from src.data.dataset import ChessBoardDataset
+from src.data.pgn_dataset import PGNDataset
 from src.engine.agents.dl_agent import DLAgent
 from src.engine.agents.stockfish_agent import StockfishAgent
 from src.engine.games import Match
@@ -18,7 +18,7 @@ class ChessBoardProfiling:
         self.data_dir = data_dir
 
     def init(self):
-        self.dataset = ChessBoardDataset(
+        self.dataset = PGNDataset(
             root_dir=self.data_dir,
             return_moves=False,
             return_outcome=False,
