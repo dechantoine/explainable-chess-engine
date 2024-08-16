@@ -5,7 +5,7 @@ import unittest
 import chess.pgn
 import pyarrow.compute as pc
 
-from src.data.parquet_db import ParquetChessDB, board_to_list_index, list_index_to_fen
+from src.data.parquet_db import ParquetChessDB, base_columns
 
 test_data_dir = "test/test_data"
 test_db_dir = "test/test_db"
@@ -18,24 +18,6 @@ def lambda_func_board(boards: list[chess.Board]) -> list[float]:
 class ParquetChessDBTestCase(unittest.TestCase):
 
     def setUp(self):
-        self.fen = "6k1/5ppp/3qp3/p2n4/P1pP4/1rP3P1/5P1P/RNQ3K1 b - - 4 28"
-        self.list_index = [[56],
-                           [57],
-                           None,
-                           [58],
-                           [62],
-                           [32, 35, 42, 46, 53, 55],
-                           [41],
-                           [27],
-                           None,
-                           [19],
-                           [6],
-                           [13, 14, 15, 20, 24, 34],
-                           0,
-                           [0, 0, 0, 0],
-                           -1,
-                           4,
-                           28]
         self.list_index_read = [[53, 56],
                                 None,
                                 [36, 44],
@@ -53,23 +35,12 @@ class ParquetChessDBTestCase(unittest.TestCase):
                                 -1,
                                 2,
                                 25]
-        self.board = chess.Board(fen=self.fen)
 
         self.db = ParquetChessDB(test_db_dir)
 
     def tearDown(self):
         if os.path.exists(test_db_dir):
             shutil.rmtree(test_db_dir)
-
-    def test_board_to_list_index(self):
-        list_index = board_to_list_index(self.board)
-
-        self.assertEqual(list_index, self.list_index)
-
-    def test_list_index_to_fen(self):
-        fen = list_index_to_fen(self.list_index)
-
-        self.assertEqual(fen, self.fen)
 
     def test_add_pgn(self):
         self.db.add_pgn(filepath=f"{test_data_dir}/Najdorf.pgn")
@@ -110,6 +81,19 @@ class ParquetChessDBTestCase(unittest.TestCase):
                                      columns=["index"])
 
         self.assertEqual(values, [[i] for i in range(1620)])
+
+    def test_len(self):
+        self.db.add_directory(directory=test_data_dir)
+
+        self.assertEqual(len(self.db), 1620)
+
+    def test_get_columns(self):
+        self.db.add_directory(directory=test_data_dir)
+        columns = self.db.get_columns()
+
+        self.assertCountEqual(columns, base_columns + ["winner", "game_id", "file_id"])
+
+
     def test_list_files(self):
         self.db.add_directory(directory=test_data_dir)
         files = self.db.list_files()
@@ -148,3 +132,15 @@ class ParquetChessDBTestCase(unittest.TestCase):
                                       columns=None)
         self.assertEqual(len(indexes), 547)
         assert all([len(i) == 17 for i in indexes])
+
+    def test_take(self):
+        self.db.add_directory(directory=test_data_dir)
+        indexes = self.db.take(indices=[0, 345, 695, 1156, 1619])
+
+        self.assertEqual(len(indexes), 5)
+        assert all([len(i) == 20 for i in indexes])
+
+        indexes = self.db.take(indices=[0, 345, 695, 1156, 1619],
+                               columns=["winner"])
+        self.assertEqual(len(indexes), 5)
+        assert all([len(i) == 1 for i in indexes])
