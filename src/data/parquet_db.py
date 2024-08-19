@@ -253,7 +253,7 @@ class ParquetChessDB:
         return self.dataset.schema
 
     def read_board(self, file_id: str, game_number: int = 0, full_move_number: int = 0, active_color: int = 0,
-                   columns: list = None) -> list:
+                   columns: list = None) -> dict:
         """Read a unique board from the parquet database by file id, game number, full move number, and active color.
 
         Args:
@@ -264,7 +264,7 @@ class ParquetChessDB:
             columns (list): columns to read. Default to all columns.
 
         Returns:
-            list: list of indexes.
+            dict: dictionary of desired columns.
 
         """
         if not columns:
@@ -277,9 +277,11 @@ class ParquetChessDB:
                                       )
         indexes = arrays_to_lists(data=table.to_pandas().values[0])
 
-        return indexes
+        outputs = {col: indexes[i] for i, col in enumerate(columns)}
 
-    def read_boards(self, filters: list = None, columns: list = None) -> list:
+        return outputs
+
+    def read_boards(self, filters: list = None, columns: list = None) -> dict:
         """Read boards from the parquet database with filters.
 
         Args:
@@ -287,7 +289,7 @@ class ParquetChessDB:
             columns (list): columns to read. Default to all columns.
 
         Returns:
-            list: list of lists of indexes.
+            dict: dictionary of desired columns.
 
         """
         if not columns:
@@ -298,21 +300,29 @@ class ParquetChessDB:
                                       )
         indexes = arrays_to_lists(data=table.to_pandas().values)
 
-        return indexes
+        outputs = {col: [indexes[i][j] for i in range(len(indexes))] for j, col in enumerate(columns)}
 
-    def take(self, indices: Union[int, list[int]], columns: list[str] = None) -> list:
+        return outputs
+
+    def take(self, indices: Union[int, list[int]] = None, columns: list[str] = None) -> dict:
         """Read boards from the parquet database by indices.
 
         Args:
-            indices (Union[int, list[int]]): indices to read.
+            indices (Union[int, list[int]]): indices to read. Default to all indices.
             columns (list[str]): columns to read.
 
         Returns:
-            list: list of lists of indexes.
+            dict: dictionary of desired columns.
 
         """
+        if not indices:
+            return self.read_boards(columns=columns)
+
         if isinstance(indices, int):
             indices = [indices]
+
+        if not columns:
+            columns = self.get_columns()
 
         indexes = arrays_to_lists(
             data=self.dataset.take(
@@ -320,4 +330,6 @@ class ParquetChessDB:
                 columns=columns
             ).to_pandas().values)
 
-        return indexes
+        outputs = {col: [indexes[i][j] for i in range(len(indexes))] for j, col in enumerate(columns)}
+
+        return outputs
