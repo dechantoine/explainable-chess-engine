@@ -54,19 +54,20 @@ class ParquetChessDataset(Dataset):
 
     def __len__(self) -> int:
         """Returns the length of the dataset."""
-        return len(self.data)
+        return len(self.indices)
 
     def get_hash(self) -> str:
         """Get the hash of the dataset."""
         return hashlib.md5(
-            (str(self.data.list_files()) + str(self.data.schema) + str(len(self.data))).encode()
+            (str(self.data.list_files()) + str(self.data.schema) + str(self.indices)).encode()
         ).hexdigest()
 
-    def __getitem__(self, idx: Union[Tensor, int]) -> Union[
-        tuple[Tensor, Tensor, Tensor], tuple[Tensor, Tensor, Tensor, Tensor]]:
+    def __getitem__(self, idx: Union[Tensor, int]) -> dict[str, Tensor]:
         """Returns the item at the given index."""
         if isinstance(idx, Tensor):
             idx = idx.item()
+
+        idx = self.indices[idx]
 
         data = self.data.take(indices=[idx],
                               columns=self.columns)[0]
