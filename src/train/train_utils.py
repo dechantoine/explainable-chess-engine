@@ -696,6 +696,163 @@ def training_loop(
 
     writer.close()
 
+
+@logger.catch
+def training_loop_distill(
+        model: torch.nn.Module,
+        optimizer: torch.optim.Optimizer,
+        loss: torch.nn.modules.loss._Loss,
+        train_dataloader: torch.utils.data.DataLoader,
+        val_dataloader: torch.utils.data.DataLoader = None,
+        n_epochs: int = 1,
+        resume_step: int = 0,
+        device: torch.device = torch.device("cpu"),
+        log_sampling: float = 0.1,
+        eval_sampling: float = 1,
+        run_name: str = "default",
+        checkpoint_dir: str = "models_checkpoint",
+        log_dir: str = "runs",
+) -> None:
+    """Training loop for the model.
+
+    Args:
+        model (torch.nn.Module): Model to train.
+        optimizer (torch.optim.optimizer.Optimizer): Optimizer to use.
+        loss (torch.nn.modules.loss._Loss): Loss function to use.
+        train_dataloader (torch.utils.data.DataLoader): Training dataloader.
+        n_epochs (int): Number of epochs.
+        resume_step (int): Step to resume from.
+        device (torch.device): Device to use.
+        val_dataloader (torch.utils.data.DataLoader): Validation dataloader.
+        log_sampling (float): Sampling rate for logging.
+        eval_sampling (float): Sampling rate for evaluation.
+        run_name (str): Name of the run.
+        checkpoint_dir (str): Directory to save the checkpoints.
+        log_dir (str): Directory to save the logs.
+
+    """
+    model.to(device)
+    model.train()
+
+    log_interval, eval_interval, first_epoch, first_batch, writer = init_loop_config(
+        len_train=len(train_dataloader),
+        log_sampling=log_sampling,
+        eval_sampling=eval_sampling,
+        resume_step=resume_step,
+        log_dir=log_dir,
+        run_name=run_name
+    )
+
+    validation_targets = []
+    for i, batch in enumerate(val_dataloader):
+        batch_targets = batch["stockfish_eval"]
+        validation_targets.extend(batch_targets)
+
+    validation_targets = (torch.stack(validation_targets)
+                          .flatten()
+                          .clip(min=-10, max=10)
+                          .detach()
+                          .numpy())
+
+    log_validation_data(targets=validation_targets,
+                        writer=writer)
+
+    for epoch in tqdm(
+            iterable=range(first_epoch, n_epochs),
+            desc="Epochs",
+    ):
+        running_loss = 0.0
+
+        for batch_idx, batch in tqdm(
+                iterable=enumerate(iterable=train_dataloader, start=first_batch),
+                desc="Batches",
+                total=len(train_dataloader),
+        ):
+
+            boards = batch["board"].to(device)
+            active_color = batch["active_color"].to(device)
+            castling = batch["castling"].to(device)
+            targets = batch["stockfish_eval"].to(device).clip(min=-10, max=10)
+
+            model.train()
+            outputs = (model((boards, active_color, castling))
+                       .flatten()
+                       .clip(min=-10, max=10))
+
+            loss_value = training_step(
+                optimizer=optimizer, loss=loss, outputs=outputs, targets=targets
+            )
+
+            running_loss += loss_value
+
+            if batch_idx % log_interval == 0 and batch_idx > 0:
+                log_train(
+                    epoch=epoch,
+                    batch_idx=batch_idx,
+                    running_loss=running_loss,
+                    len_trainset=len(train_dataloader),
+                    log_interval=log_interval,
+                    writer=writer,
+                )
+                running_loss = 0.0
+
+            if batch_idx % eval_interval == 0 or batch_idx == len(train_dataloader) - 1:
+
+                model.eval()
+                validation_outputs = []
+                for i, val_batch in enumerate(val_dataloader):
+                    boards = val_batch["board"].to(device)
+                    active_color = val_batch["active_color"].to(device)
+                    castling = val_batch["castling"].to(device)
+                    outputs = model((boards, active_color, castling)).detach()
+                    validation_outputs.extend(outputs)
+
+                validation_outputs = (torch.stack(validation_outputs)
+                                      .flatten()
+                                      .clip(min=-10, max=10)
+                                      .detach()
+                                      .numpy())
+
+                log_eval(
+                    epoch=epoch,
+                    batch_idx=batch_idx,
+                    outputs=validation_outputs,
+                    targets=validation_targets,
+                    len_trainset=len(train_dataloader),
+                    save_obj={
+                        "model_state_dict": model.state_dict(),
+                        "epoch": epoch,
+                        "optimizer_state_dict": optimizer.state_dict(),
+                        "loss": loss,
+                    },
+                    hparams={
+                        "mode": "distill_stockfish",
+                        "model": model.__class__.__name__,
+                        "model_hash": model.model_hash(),
+                        "optimizer": optimizer.__class__.__name__,
+                        "lr": optimizer.state_dict()["param_groups"][0]["lr"]
+                        if "lr" in optimizer.state_dict()["param_groups"][0]
+                        else None,
+                        "lr_decay": optimizer.state_dict()["param_groups"][0]["lr_decay"]
+                        if "lr_decay" in optimizer.state_dict()["param_groups"][0]
+                        else None,
+                        "weight_decay": optimizer.state_dict()["param_groups"][0]["weight_decay"]
+                        if "weight_decay" in optimizer.state_dict()["param_groups"][0]
+                        else None,
+                        "loss": loss.__class__.__name__,
+                        "n_epochs": n_epochs,
+                        "batch_size": train_dataloader.batch_size,
+                        "train_dataset_hash": train_dataloader.dataset.get_hash(),
+                        "test_dataset_hash": val_dataloader.dataset.get_hash(),
+                    },
+                    writer=writer,
+                    run_name=run_name,
+                    checkpoint_dir=checkpoint_dir,
+                )
+
+    writer.close()
+
+
 class ChessEvalLoss(torch.nn.Module):
     def __init__(self, power: float = 2):
         """Loss function that only penalizes more the model if the signs of the outputs and targets are different."""
