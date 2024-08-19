@@ -698,3 +698,29 @@ def training_loop(
             )
 
     writer.close()
+
+class ChessEvalLoss(torch.nn.Module):
+    def __init__(self, power: float = 2):
+        """Loss function that only penalizes more the model if the signs of the outputs and targets are different."""
+        super(ChessEvalLoss, self).__init__()
+        self.power = power
+
+    def forward(self, outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        """Forward pass of the loss
+    Args:
+        outputs (torch.Tensor): Outputs of the model.
+        targets (torch.Tensor): Targets of the model.
+
+    Returns:
+        torch.Tensor: Loss values.
+
+    """
+        return torch.mean(
+            torch.where(
+                condition=torch.sign(outputs) == torch.sign(targets),
+                input=torch.abs(outputs - targets) / (1 + torch.min(torch.abs(targets), torch.abs(outputs))),
+                other=torch.where(condition=torch.abs(outputs - targets) > 1,
+                                  input=torch.abs(outputs - targets) ** self.power,
+                                  other=torch.abs(outputs - targets) ** 1/self.power)
+            )
+        )
