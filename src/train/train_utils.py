@@ -439,14 +439,11 @@ def log_train(
 def log_eval(
         epoch: int,
         batch_idx: int,
-        model: torch.nn.Module,
-        optimizer: torch.optim.Optimizer,
-        loss: torch.nn.modules.loss._Loss,
-        train_dataloader: torch.utils.data.DataLoader,
-        test_dataloader: torch.utils.data.DataLoader,
-        gamma: float,
-        n_epochs: int,
-        device: torch.device,
+        outputs: np.array,
+        targets: np.array,
+        len_trainset: int,
+        save_obj: dict,
+        hparams: dict,
         writer: SummaryWriter,
         run_name: str,
         checkpoint_dir: str,
@@ -456,33 +453,26 @@ def log_eval(
     Args:
         epoch (int): Current epoch.
         batch_idx (int): Current batch.
-        model (torch.nn.Module): Model to evaluate.
-        optimizer (torch.optim.optimizer.Optimizer): Optimizer to use.
-        loss (torch.nn.modules.loss._Loss): Loss function to use.
-        train_dataloader (torch.utils.data.DataLoader): Dataloader for the training set.
-        test_dataloader (torch.utils.data.DataLoader): Dataloader for the test set.
-        gamma (float): Discount factor.
-        n_epochs (int): Number of epochs.
-        device (torch.device): Device to use.
+        outputs (np.array): Validation outputs of the model.
+        targets (np.array): Validation targets of the model.
+        len_trainset (int): Length of the training set.
+        save_obj (dict): Object to save.
+        hparams (dict): Hyperparameters to log.
         writer (SummaryWriter): Writer for the logs.
         run_name (str): Name of the run.
         checkpoint_dir (str): Directory to save the checkpoints.
 
     """
-    if batch_idx == len(train_dataloader):
+    if batch_idx == len_trainset - 1:
         logger.info(f"Running eval on the end of epoch {epoch}...")
-        global_step = (epoch + 1) * len(train_dataloader)
+        global_step = (epoch + 1) * len_trainset
 
     elif batch_idx == 0 and epoch > 0:
         return
 
     else:
         logger.info(f"Running eval on epoch {epoch}, batch {batch_idx}...")
-        global_step = epoch * len(train_dataloader) + batch_idx
-
-    outputs, targets = validation_values(
-        model=model, test_dataloader=test_dataloader, gamma=gamma, device=device
-    )
+        global_step = epoch * len_trainset + batch_idx
 
     val_metrics = validation(
         outputs=outputs, targets=targets,
@@ -500,27 +490,6 @@ def log_eval(
         tag="Distributions/bivariate", figure=fig, global_step=global_step
     )
 
-    hparams = {
-        "model": model.__class__.__name__,
-        "model_hash": model.model_hash(),
-        "optimizer": optimizer.__class__.__name__,
-        "lr": optimizer.state_dict()["param_groups"][0]["lr"]
-        if "lr" in optimizer.state_dict()["param_groups"][0]
-        else None,
-        "lr_decay": optimizer.state_dict()["param_groups"][0]["lr_decay"]
-        if "lr_decay" in optimizer.state_dict()["param_groups"][0]
-        else None,
-        "weight_decay": optimizer.state_dict()["param_groups"][0]["weight_decay"]
-        if "weight_decay" in optimizer.state_dict()["param_groups"][0]
-        else None,
-        "loss": loss.__class__.__name__,
-        "gamma": gamma,
-        "n_epochs": n_epochs,
-        "batch_size": train_dataloader.batch_size,
-        "train_dataset_hash": train_dataloader.dataset.hash,
-        "test_dataset_hash": test_dataloader.dataset.hash,
-    }
-
     writer.add_hparams(
         hparam_dict=hparams,
         metric_dict=val_metrics,
@@ -534,12 +503,7 @@ def log_eval(
         os.makedirs(f"./{checkpoint_dir}/{run_name}")
 
     torch.save(
-        obj={
-            "model_state_dict": model.state_dict(),
-            "epoch": epoch,
-            "optimizer_state_dict": optimizer.state_dict(),
-            "loss": loss,
-        },
+        obj=save_obj,
         f=f"./{checkpoint_dir}/{run_name}/{CHECKPOINT_PREFIX}{global_step}.pt",
     )
 
