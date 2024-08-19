@@ -239,7 +239,9 @@ class ParquetChessDB:
             list[str]: list of files.
 
         """
-        return self.dataset.files
+        files = self.dataset.files.copy()
+        files.sort()
+        return files
 
     def schema(self) -> pa.Schema:
         """Get the schema of the parquet database.
