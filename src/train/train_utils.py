@@ -228,6 +228,37 @@ def init_training(
     return model, optimizer, max(checkpoint, 0)
 
 
+def init_loop_config(len_train: int,
+                     log_sampling: float,
+                     eval_sampling: float,
+                     resume_step: int,
+                     log_dir: str,
+                     run_name: str):
+    """Initialize the loop configuration.
+
+    Args:
+        len_train (int): Length of the training set.
+        log_sampling (float): Sampling rate for logging.
+        eval_sampling (float): Sampling rate for evaluation.
+        resume_step (int): Step to resume from.
+        log_dir (str): Directory to save the logs.
+        run_name (str): Name of the run.
+
+    """
+    log_interval = int(len_train * log_sampling)
+    eval_interval = int(len_train * eval_sampling)
+
+    first_epoch = resume_step // len_train
+    first_batch = resume_step % len_train
+
+    writer = SummaryWriter(
+        log_dir=f"./{log_dir}/{run_name}",
+        purge_step=first_epoch * len_train + first_batch + 1,
+    )
+
+    return log_interval, eval_interval, first_epoch, first_batch, writer
+
+
 @logger.catch
 def validation_values(
         model: torch.nn.Module,
@@ -573,8 +604,14 @@ def training_loop(
     model.to(device)
     model.train()
 
-    log_interval = int(len(train_dataloader) * log_sampling)
-    eval_interval = int(len(train_dataloader) * eval_sampling)
+    log_interval, eval_interval, first_epoch, first_batch, writer = init_loop_config(
+        len_train=len(train_dataloader),
+        log_sampling=log_sampling,
+        eval_sampling=eval_sampling,
+        resume_step=resume_step,
+        log_dir=log_dir,
+        run_name=run_name
+    )
 
     first_epoch = resume_step // len(train_dataloader)
     first_batch = resume_step % len(train_dataloader)
