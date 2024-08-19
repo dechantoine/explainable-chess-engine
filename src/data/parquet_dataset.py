@@ -15,17 +15,31 @@ class ParquetChessDataset(Dataset):
 
     def __init__(self,
                  path: str,
-                 stockfish_eval: bool = True
+                 stockfish_eval: bool = True,
+                 winner: bool = False
                  ) -> None:
         """Initializes the ParquetChessDataset class.
 
         Args:
             path (str): The path to the Parquet file.
-            stockfish_eval (bool): Whether to include Stockfish evaluations.
+            stockfish_eval (bool): Whether to include Stockfish evaluations in outputs.
+            winner (bool): Whether to include winner in outputs.
 
         """
         self.data = ParquetChessDB(path)
+        self.indices = np.arange(len(self.data))
+        self.set_columns(stockfish_eval=stockfish_eval, winner=winner)
+
+    def set_columns(self, stockfish_eval: bool = True, winner: bool = False) -> None:
+        """Sets the columns to include in the dataset outputs.
+
+        Args:
+            stockfish_eval (bool): Whether to include Stockfish evaluations in outputs.
+            winner (bool): Whether to include winner in outputs.
+
+        """
         self.stockfish_eval = stockfish_eval
+        self.winner = winner
 
         self.columns = base_columns.copy()
         self.columns.remove("en_passant")
@@ -34,6 +48,9 @@ class ParquetChessDataset(Dataset):
 
         if stockfish_eval:
             self.columns.append("stockfish_eval")
+
+        if winner:
+            self.columns.append("winner")
 
     def __len__(self) -> int:
         """Returns the length of the dataset."""
