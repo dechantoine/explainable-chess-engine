@@ -18,23 +18,23 @@ def lambda_func_board(boards: list[chess.Board]) -> list[float]:
 class ParquetChessDBTestCase(unittest.TestCase):
 
     def setUp(self):
-        self.list_index_read = [[53, 56],
-                                None,
-                                [36, 44],
-                                [41],
-                                [62],
-                                [18, 42, 43, 45, 54, 55],
-                                [6, 14],
-                                [17],
-                                [10],
-                                [21],
-                                [2],
-                                [9, 23, 28],
-                                0,
-                                [0, 0, 0, 0],
-                                -1,
-                                2,
-                                25]
+        self.dict_index_read = {"R": [53, 56],
+                                "N": None,
+                                "B": [36, 44],
+                                "Q": [41],
+                                "K": [62],
+                                "P": [18, 42, 43, 45, 54, 55],
+                                "r": [6, 14],
+                                "n": [17],
+                                "b": [10],
+                                "q": [21],
+                                "k": [2],
+                                "p": [9, 23, 28],
+                                "active_color": 0,
+                                "castling": [0, 0, 0, 0],
+                                "en_passant": -1,
+                                "half_moves": 2,
+                                "total_moves": 25}
 
         self.db = ParquetChessDB(test_db_dir)
 
@@ -61,7 +61,7 @@ class ParquetChessDBTestCase(unittest.TestCase):
         values = self.db.read_boards(filters=[pc.field("file_id") == "Najdorf.pgn"],
                                      columns=["index"])
 
-        self.assertEqual(values, [[i] for i in range(266)])
+        self.assertEqual(values["index"], list(range(266)))
 
     def test_add_directory(self):
         self.db.add_directory(directory=test_data_dir)
@@ -80,7 +80,7 @@ class ParquetChessDBTestCase(unittest.TestCase):
         values = self.db.read_boards(filters=None,
                                      columns=["index"])
 
-        self.assertEqual(values, [[i] for i in range(1620)])
+        self.assertEqual(values["index"], list(range(1620)))
 
     def test_len(self):
         self.db.add_directory(directory=test_data_dir)
@@ -109,38 +109,45 @@ class ParquetChessDBTestCase(unittest.TestCase):
                                    full_move_number=25,
                                    active_color=0)
 
-        self.assertEqual(board, self.list_index_read)
+        self.assertEqual(board, self.dict_index_read)
 
         board = self.db.read_board(file_id="Morphy.pgn",
                                    game_number=0,
                                    full_move_number=8,
                                    active_color=0,
                                    columns=["winner"])
-        self.assertEqual(board, [1])
+        self.assertEqual(board["winner"], 1)
 
     def test_read_boards(self):
         self.db.add_directory(directory=test_data_dir)
-        winners = self.db.read_boards(filters=[pc.field("active_color") == 0],
+        boards = self.db.read_boards(filters=[pc.field("active_color") == 0],
                                       columns=["winner"])
 
-        self.assertEqual(len(winners), 806)
-        assert all([len(w) == 1 for w in winners])
-        assert all([w[0] in [-1, 0, 1] for w in winners])
+        self.assertEqual(len(boards["winner"]), 806)
+        assert all([w in [-1, 0, 1] for w in boards["winner"]])
 
-        indexes = self.db.read_boards(filters=[pc.field("active_color") == 0,
+        boards = self.db.read_boards(filters=[pc.field("active_color") == 0,
                                                pc.field("winner") == 1],
                                       columns=None)
-        self.assertEqual(len(indexes), 547)
-        assert all([len(i) == 17 for i in indexes])
+
+        self.assertEqual(len(boards), 17)
+        assert all([len(i) == 547 for i in boards.values()])
 
     def test_take(self):
         self.db.add_directory(directory=test_data_dir)
         indexes = self.db.take(indices=[0, 345, 695, 1156, 1619])
 
-        self.assertEqual(len(indexes), 5)
-        assert all([len(i) == 20 for i in indexes])
+        self.assertEqual(len(indexes), 20)
+        assert all([len(i) == 5 for i in indexes.values()])
 
         indexes = self.db.take(indices=[0, 345, 695, 1156, 1619],
                                columns=["winner"])
-        self.assertEqual(len(indexes), 5)
-        assert all([len(i) == 1 for i in indexes])
+
+        self.assertEqual(len(indexes), 1)
+        assert all([len(i) == 5 for i in indexes.values()])
+
+        indexes = self.db.take(indices=None,
+                               columns=["winner"])
+
+        self.assertEqual(len(indexes), 1)
+        assert all([len(i) == 1620 for i in indexes.values()])
