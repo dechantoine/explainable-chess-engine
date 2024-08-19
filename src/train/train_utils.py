@@ -545,32 +545,20 @@ def log_eval(
 
 
 @logger.catch
-def log_testdata(
-        test_dataloader: torch.utils.data.DataLoader, gamma: float, writer: SummaryWriter
+def log_validation_data(
+        targets: np.array, writer: SummaryWriter
 ) -> None:
     """Log the test data.
 
     Args:
-        test_dataloader (torch.utils.data.DataLoader): Dataloader for the test set.
-        gamma (float): Discount factor.
+        targets (np.array): Targets to log.
         writer (SummaryWriter): Writer for the logs.
 
     """
-    logger.info("Logging test data...")
-
-    outcomes = []
-    for i, batch in enumerate(test_dataloader):
-        if test_dataloader.dataset.return_moves:
-            _, _, outcome = batch
-        else:
-            _, outcome = batch
-        outcomes.extend(outcome)
-
-    outcomes = torch.stack(outcomes)
-    rewards = reward_fn(outcomes, gamma=gamma)
+    logger.info("Logging validation data...")
 
     writer.add_histogram(
-        tag="TestData/rewards_distribution", bins="auto", values=rewards, global_step=0
+        tag="ValidationData/targets_distribution", bins="auto", values=targets, global_step=0
     )
 
 
@@ -630,7 +618,7 @@ def training_loop(
         purge_step=first_epoch * len(train_dataloader) + first_batch + 1,
     )
 
-    log_testdata(test_dataloader=test_dataloader, gamma=gamma, writer=writer)
+    #log_testdata(targets=rewards, writer=writer)
 
     for epoch in tqdm(
             iterable=range(first_epoch, n_epochs),
