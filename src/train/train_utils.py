@@ -321,6 +321,9 @@ def validation(
         dict[str, dict[str, float]]: Evaluation metrics
 
     """
+    white_outputs = outputs[np.sign(targets) == 1]
+    black_outputs = outputs[np.sign(targets) == -1]
+
     eval_scalars = {}
     errors = (targets - outputs).flatten()
     squared_errors = errors ** 2
@@ -336,6 +339,12 @@ def validation(
     eval_scalars["Errors/root_std_squared_error"] = np.sqrt(np.std(squared_errors))
     eval_scalars["Errors/mean_absolute_error"] = np.mean(abs(errors))
     eval_scalars["Errors/std_absolute_error"] = np.std(abs(errors))
+
+    eval_scalars["Errors/sign_error_rate"] = np.mean(np.sign(outputs) != np.sign(targets))
+    eval_scalars["Errors/black_sign_error_rate"] = np.mean(black_outputs > 0)
+    eval_scalars["Errors/white_sign_error_rate"] = np.mean(white_outputs < 0)
+
+    eval_scalars["Errors/chess_loss"] = ChessEvalLoss()(torch.tensor(outputs), torch.tensor(targets)).item()
 
     return eval_scalars
 
