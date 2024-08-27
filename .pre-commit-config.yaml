@@ -84,8 +84,10 @@ repos:
         args:
           [
             "--check",
+            "--check-diff",
             "--in-place",
             "--remove-unused-variables",
             "--remove-duplicate-keys",
             "--remove-all-unused-imports",
+            "--ignore-pass-statements",
           ]
