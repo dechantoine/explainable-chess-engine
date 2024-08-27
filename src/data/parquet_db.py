@@ -204,13 +204,22 @@ class ParquetChessDB:
 
         dir = os.listdir(directory)
         dir.sort()
+
+        logger.info(f"Found {len(dir)} files in the directory.")
+
+        existing_files = self.list_files()
+        existing_files = [file.split("/")[1].split("=")[1] for file in existing_files]
+
+        logger.info(f"{len(existing_files)} files already in the database.")
+
+        dir = [file for file in dir if file.endswith(".pgn") and file not in existing_files]
+
         for file in tqdm(iterable=dir,
                          desc="Processing PGN files..."):
-            if file.endswith(".pgn"):
-                file_path = os.path.join(directory, file)
-                df_file, boards_file = process_pgn_for_parquet(file_path)
-                df = pd.concat(objs=[df, df_file], ignore_index=True)
-                boards += boards_file
+            file_path = os.path.join(directory, file)
+            df_file, boards_file = process_pgn_for_parquet(file_path)
+            df = pd.concat(objs=[df, df_file], ignore_index=True)
+            boards += boards_file
 
         for col, func in funcs.items():
             logger.info(f"Applying function {col} to boards.")
@@ -230,7 +239,10 @@ class ParquetChessDB:
 
         self._load()
 
-        logger.info("Directory added.")
+        if len(existing_files) > 0:
+            logger.info(f"Added {len(dir)} files to the database.")
+        else:
+            logger.info("Directory added to the new database.")
 
     def list_files(self) -> list[str]:
         """List the files in the parquet database.
