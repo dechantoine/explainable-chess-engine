@@ -1,19 +1,13 @@
 import click
 from loguru import logger
 from torch.nn import MSELoss
-from torch.optim import Adadelta, Adam
+from torch.optim import Adadelta
 from torch.utils.data import DataLoader
 
 from src.data.parquet_dataset import ParquetChessDataset
-from src.data.pgn_dataset import PGNDataset
 from src.models import get_model
-from src.train.train_utils import (
-    ChessEvalLoss,
-    init_training,
-    train_test_split,
-    training_loop_distill,
-    training_loop_rl,
-)
+from src.train.distill import ChessEvalLoss, DistillTrainer
+from src.train.reinforcement import RLTrainer
 
 
 def collate_fn(x):
@@ -36,7 +30,6 @@ def cli():
 @click.option("--model_name", required=True, help="Model name.")
 @click.option("--checkpoint_dir", default="models_checkpoint", help="Checkpoint directory.")
 @click.option("--log_dir", default="logs", help="Log directory.")
-@click.option("--dataset_num_workers", default=8, help="Python dataset number of workers.")
 @click.option("--dataloaders_num_workers", default=2, help="Torch Dataloaders number of workers.")
 @click.option("--train_size", default=0.9, help="Train size.")
 @click.option("--n_epochs", default=20, help="Number of epochs.")
@@ -49,7 +42,6 @@ def rl(run_name,
        model_name,
        checkpoint_dir,
        log_dir,
-       dataset_num_workers,
        dataloaders_num_workers,
        train_size,
        n_epochs,
@@ -58,6 +50,7 @@ def rl(run_name,
        gamma,
        log_sampling,
        eval_sampling):
+
     logger.info("Initializing RL: model, optimizer, and loss.")
     model = get_model(model_name)
     optimizer = Adadelta(
@@ -66,12 +59,23 @@ def rl(run_name,
     )
     loss = MSELoss()
 
-    model, optimizer, resume_step = init_training(
+    trainer = RLTrainer(
         run_name=run_name,
         checkpoint_dir=checkpoint_dir,
         log_dir=log_dir,
         model=model,
-        optimizer=optimizer
+        optimizer=optimizer,
+        loss=loss,
+        device="cpu",
+        log_sampling=log_sampling,
+        eval_sampling=eval_sampling,
+        board_column="board",
+        active_color_column="active_color",
+        castling_column="castling",
+        winner_column="winner",
+        total_moves_column="total_moves",
+        game_len_column="game_len",
+        gamma=gamma,
     )
 
     logger.info(
@@ -79,19 +83,12 @@ def rl(run_name,
     )
 
     logger.info("Loading data.")
-    dataset = PGNDataset(
-        root_dir="./sample_data",
-        transform=True,
-        return_moves=False,
-        return_outcome=True,
-        include_draws=False,
-        in_memory=True,
-        num_workers=dataset_num_workers,
-    )
+    dataset = ParquetChessDataset(path="./parquet_data",
+                                  stockfish_eval=False)
     logger.info(f"Dataset size: {len(dataset)}")
 
     logger.info("Splitting data.")
-    train_dataset, test_dataset = train_test_split(
+    train_dataset, val_dataset = trainer.train_test_split(
         dataset=dataset,
         seed=0,
         train_size=train_size,
@@ -99,7 +96,7 @@ def rl(run_name,
     )
 
     logger.info(f"Train dataset size: {len(train_dataset)}")
-    logger.info(f"Test dataset size: {len(test_dataset)}")
+    logger.info(f"Validation dataset size: {len(val_dataset)}")
 
     train_dataloader = DataLoader(
         train_dataset,
@@ -109,8 +106,8 @@ def rl(run_name,
         num_workers=dataloaders_num_workers,
     )
 
-    test_dataloader = DataLoader(
-        test_dataset,
+    val_dataloader = DataLoader(
+        val_dataset,
         batch_size=batch_size,
         shuffle=True,
         collate_fn=collate_fn,
@@ -118,21 +115,10 @@ def rl(run_name,
     )
 
     logger.info("Starting training loop.")
-    training_loop_rl(
-        model=model,
-        optimizer=optimizer,
-        loss=loss,
-        gamma=gamma,
+    trainer.training_loop(
         train_dataloader=train_dataloader,
-        test_dataloader=test_dataloader,
+        val_dataloader=val_dataloader,
         n_epochs=n_epochs,
-        resume_step=resume_step,
-        device="cpu",
-        log_sampling=log_sampling,
-        eval_sampling=eval_sampling,
-        run_name=run_name,
-        checkpoint_dir=checkpoint_dir,
-        log_dir=log_dir,
     )
 
 
@@ -159,20 +145,30 @@ def distill(run_name,
             lr,
             log_sampling,
             eval_sampling):
+
     logger.info("Initializing Distillation: model, optimizer, and loss.")
+
     model = get_model(model_name)
-    optimizer = Adam(
+    optimizer = Adadelta(
         params=model.parameters(),
         lr=lr,
     )
-    loss = ChessEvalLoss()
+    loss = ChessEvalLoss(power=2)
 
-    model, optimizer, resume_step = init_training(
+    trainer = DistillTrainer(
         run_name=run_name,
         checkpoint_dir=checkpoint_dir,
         log_dir=log_dir,
         model=model,
-        optimizer=optimizer
+        optimizer=optimizer,
+        loss=loss,
+        device="cpu",
+        log_sampling=log_sampling,
+        eval_sampling=eval_sampling,
+        eval_column="stockfish_eval",
+        board_column="board",
+        active_color_column="active_color",
+        castling_column="castling",
     )
 
     logger.info(
@@ -184,13 +180,14 @@ def distill(run_name,
                                   stockfish_eval=True)
     logger.info(f"Dataset size: {len(dataset)}")
 
-    dataset.balanced_eval_signs()
+    dataset = trainer.balanced_eval_signs(dataset=dataset)
 
     logger.info("Splitting data.")
-    train_dataset, val_dataset = dataset.train_test_split(
+    train_dataset, val_dataset = trainer.train_test_split(
+        dataset=dataset,
         seed=0,
         train_size=train_size,
-        stratify="stockfish_eval"
+        stratify=True
     )
 
     logger.info(f"Train dataset size: {len(train_dataset)}")
@@ -213,21 +210,9 @@ def distill(run_name,
     )
 
     logger.info("Starting training loop.")
-    training_loop_distill(
-        model=model,
-        optimizer=optimizer,
-        loss=loss,
-        train_dataloader=train_dataloader,
-        val_dataloader=val_dataloader,
-        n_epochs=n_epochs,
-        resume_step=resume_step,
-        device="cpu",
-        log_sampling=log_sampling,
-        eval_sampling=eval_sampling,
-        run_name=run_name,
-        checkpoint_dir=checkpoint_dir,
-        log_dir=log_dir,
-    )
+    trainer.training_loop(train_dataloader=train_dataloader,
+                          val_dataloader=val_dataloader,
+                          n_epochs=n_epochs)
 
 
 if __name__ == "__main__":
