@@ -145,10 +145,16 @@ poetry run snakeviz profile_package/profile_parquet_dataset/getitems.prof
 poetry run python -m scripts.write_to_parquet process-directory --input_path=sample_data --output_path=parquet_data
 ```
 
-### Train a model
+### Train a model using the RL framework
 
 ```sh
 poetry run python -m src.train.train rl --run_name=run_name --dataset_num_workers=8 --dataloaders_num_workers=2 --train_size=0.9 --n_epochs=20 --batch_size=64 --lr=0.1 --gamma=0.99 --log_sampling=0.05 --eval_sampling=1.0 --checkpoint_dir=checkpoints --log_dir=logdir
+```
+
+### Train a model using the supervised framework
+
+```sh
+poetry run python -m src.train.train distill --run_name=run-name --lr=0.01 --dataloaders_num_workers=4 --log_sampling=0.01 --eval_sampling=1.0 --checkpoint_dir=checkpoints --log_dir=logdir
 ```
 
 ### Launch Tensorboard
