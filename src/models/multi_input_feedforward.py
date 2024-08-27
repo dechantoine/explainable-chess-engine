@@ -11,10 +11,10 @@ class MultiInputFF(torch.nn.Module):
         self.flatten = torch.nn.Flatten()
         self.linear_relu_stack = torch.nn.Sequential(
             torch.nn.Linear(in_features=(12 * 8 * 8) + 1 + 4, out_features=100),
-            torch.nn.ReLU(),
+            torch.nn.LeakyReLU(),
             torch.nn.Dropout(p=0.2),
             torch.nn.Linear(in_features=100, out_features=10),
-            torch.nn.ReLU(),
+            torch.nn.LeakyReLU(),
             torch.nn.Dropout(p=0.2),
             torch.nn.Linear(in_features=10, out_features=1),
             torch.nn.Tanh(),
