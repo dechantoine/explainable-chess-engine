@@ -93,7 +93,6 @@ class ParquetChessDBTestCase(unittest.TestCase):
 
         self.assertCountEqual(columns, base_columns + ["winner", "game_id", "file_id"])
 
-
     def test_list_files(self):
         self.db.add_directory(directory=test_data_dir)
         files = self.db.list_files()
@@ -121,14 +120,14 @@ class ParquetChessDBTestCase(unittest.TestCase):
     def test_read_boards(self):
         self.db.add_directory(directory=test_data_dir)
         boards = self.db.read_boards(filters=[pc.field("active_color") == 0],
-                                      columns=["winner"])
+                                     columns=["winner"])
 
         self.assertEqual(len(boards["winner"]), 806)
         assert all([w in [-1, 0, 1] for w in boards["winner"]])
 
         boards = self.db.read_boards(filters=[pc.field("active_color") == 0,
-                                               pc.field("winner") == 1],
-                                      columns=None)
+                                              pc.field("winner") == 1],
+                                     columns=None)
 
         self.assertEqual(len(boards), 17)
         assert all([len(i) == 547 for i in boards.values()])
