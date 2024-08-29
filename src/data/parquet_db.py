@@ -28,6 +28,8 @@ base_fields = ([pa.field(name=piece, type=pa.list_(pa.int64())) for piece in lis
                   pa.field(name="half_moves", type=pa.int64()),
                   pa.field(name="total_moves", type=pa.int64())])
 
+PROCESSING_BATCH_SIZE = 10
+
 
 def and_filters(filters: list) -> pc.Expression:
     """Convert a list of filters to a pyarrow filter with an AND operation.
@@ -80,41 +82,6 @@ def process_games_for_parquet(game: chess.pgn) -> tuple[pd.DataFrame, list[chess
     return df_game, boards
 
 
-def process_pgn_for_parquet(filepath: str) -> tuple[pd.DataFrame, list[chess.Board]]:
-    """Process a PGN file for the parquet database.
-
-    Args:
-        filepath (str): path to the PGN file.
-
-    Returns:
-        tuple: a tuple containing a dataframe and a list of boards.
-
-    """
-    pgn = open(filepath)
-    file_id = os.path.basename(filepath)
-
-    game_id = 0
-    boards = []
-    df = pd.DataFrame(columns=base_columns
-                              + ["winner", "game_id", "file_id"])
-
-    while game := chess.pgn.read_game(pgn):
-        winner = 1 if game.headers["Result"] == "1-0" else 0 if game.headers["Result"] == "0-1" else -1
-
-        df_game, game_boards = process_games_for_parquet(game)
-
-        df_game["winner"] = winner
-        df_game["game_id"] = game_id
-        df_game["file_id"] = file_id
-
-        df = pd.concat(objs=[df, df_game], ignore_index=True)
-        boards += game_boards
-
-        game_id += 1
-
-    return df, boards
-
-
 class ParquetChessDB:
     def __init__(self, path: str) -> None:
         """Initialize the ParquetChessDB object.
@@ -157,32 +124,66 @@ class ParquetChessDB:
              file.
 
         """
-        logger.info("Adding PGN file to ParquetChessDB...")
-
         if not funcs:
             funcs = {}
 
-        df, boards = process_pgn_for_parquet(filepath)
+        pgn = open(filepath)
+        file_id = os.path.basename(filepath)
+        k = 0
+        game_id = 0
 
-        for col, func in funcs.items():
-            logger.info(f"Applying function {col} to boards.")
-            df[col] = func(boards)
+        game = True
 
-        pq.write_to_dataset(table=pa.Table.from_pandas(df=df,
-                                                       preserve_index=False),
-                            schema=pa.schema(fields=base_fields +
-                                                    [pa.field(name="winner", type=pa.int64()),
-                                                     pa.field(name="game_id", type=pa.int64()),
-                                                     pa.field(name="file_id", type=pa.string())] +
-                                                    [pa.field(name=col, type=pa.infer_type(values=df[col]))
-                                                     for col in funcs.keys()]),
-                            root_path=self.path,
-                            partition_cols=["file_id"],
-                            basename_template="part_{i}.parquet")
+        boards = []
+        df = pd.DataFrame(columns=base_columns
+                                  + ["winner", "game_id", "file_id"])
+
+        while game:
+            try:
+                game = chess.pgn.read_game(pgn)
+            except Exception as e:
+                logger.error(f"Error reading game: {e}")
+                continue
+
+            if not game:
+                break
+
+            winner = 1 if game.headers["Result"] == "1-0" else 0 if game.headers["Result"] == "0-1" else -1
+
+            df_game, game_boards = process_games_for_parquet(game)
+
+            df_game["winner"] = winner
+            df_game["game_id"] = game_id
+            df_game["file_id"] = file_id
+
+            df = pd.concat(objs=[df, df_game], ignore_index=True)
+            boards += game_boards
+
+            if (game_id + 1) % PROCESSING_BATCH_SIZE == 0:
+
+                for col, func in funcs.items():
+                    df[col] = func(boards)
+
+                pq.write_to_dataset(table=pa.Table.from_pandas(df=df,
+                                                               preserve_index=False),
+                                    schema=pa.schema(fields=base_fields +
+                                                            [pa.field(name="winner", type=pa.int64()),
+                                                             pa.field(name="game_id", type=pa.int64()),
+                                                             pa.field(name="file_id", type=pa.string())] +
+                                                            [pa.field(name=col, type=pa.infer_type(values=df[col]))
+                                                             for col in funcs.keys()]),
+                                    root_path=self.path,
+                                    partition_cols=["file_id"],
+                                    basename_template="part_{{i}}_{batch_id}.parquet".format(batch_id=k))
+
+                k += 1
+                boards = []
+                df = pd.DataFrame(columns=base_columns
+                                          + ["winner", "game_id", "file_id"])
+
+            game_id += 1
 
         self._load()
-
-        logger.info("PGN file added.")
 
     def add_directory(self, directory: str, funcs: dict = None) -> None:
         """Add a directory of PGN files to the parquet database.
@@ -197,10 +198,6 @@ class ParquetChessDB:
 
         if not funcs:
             funcs = {}
-
-        df = pd.DataFrame(columns=base_columns
-                                  + ["winner", "game_id", "file_id"])
-        boards = []
 
         dir = os.listdir(directory)
         dir.sort()
@@ -217,27 +214,8 @@ class ParquetChessDB:
         for file in tqdm(iterable=dir,
                          desc="Processing PGN files..."):
             file_path = os.path.join(directory, file)
-            df_file, boards_file = process_pgn_for_parquet(file_path)
-            df = pd.concat(objs=[df, df_file], ignore_index=True)
-            boards += boards_file
-
-        for col, func in funcs.items():
-            logger.info(f"Applying function {col} to boards.")
-            df[col] = func(boards)
-
-        pq.write_to_dataset(table=pa.Table.from_pandas(df=df,
-                                                       preserve_index=False),
-                            schema=pa.schema(fields=base_fields +
-                                                    [pa.field(name="winner", type=pa.int64()),
-                                                     pa.field(name="game_id", type=pa.int64()),
-                                                     pa.field(name="file_id", type=pa.string())] +
-                                                    [pa.field(name=col, type=pa.infer_type(values=df[col]))
-                                                     for col in funcs.keys()]),
-                            root_path=self.path,
-                            partition_cols=["file_id"],
-                            basename_template="part_{i}.parquet")
-
-        self._load()
+            self.add_pgn(filepath=file_path,
+                         funcs=funcs)
 
         if len(existing_files) > 0:
             logger.info(f"Added {len(dir)} files to the database.")
