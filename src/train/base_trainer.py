@@ -8,39 +8,27 @@ import torch
 from loguru import logger
 from MultiChoice import MultiChoice
 from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
 
 CHECKPOINT_PREFIX = "checkpoint_"
 START_FROM_SCRATCH = "Start From Scratch"
 
 
-def plot_bivariate_distributions(predictions: np.array,
-                                 targets: np.array,
-                                 bins: list[float]
-                                 ) -> plt.Figure:
-    """Plot bivariate distributions of predictions and targets.
+def online_mean(mean: float,
+                new_values: np.array,
+                current_size: int) -> float:
+    """Compute the online mean.
 
     Args:
-        predictions (np.array): predictions.
-        targets (np.array): targets.
-        bins (list[float]): bins for the plot.
+        mean (float): Current mean.
+        new_values (np.array): New values.
+        current_size (int): Current size.
 
     Returns:
-        fig: plt.Figure, figure of the plot
+        float: New mean.
 
     """
-    sns.set_theme(style="darkgrid")
-
-    axes = sns.histplot(
-        data={"targets": targets, "predictions": predictions},
-        x="targets",
-        y="predictions",
-        stat="density",
-        bins=bins,
-        cbar=True,
-    )
-
-    return axes.figure
-
+    return (mean * current_size + np.sum(new_values)) / (current_size + len(new_values))
 
 class BaseTrainer(ABC):
     def __init__(self,
@@ -52,7 +40,10 @@ class BaseTrainer(ABC):
                  loss: torch.nn.Module,
                  device: torch.device,
                  log_sampling: float,
-                 eval_sampling: float):
+                 eval_sampling: float,
+                 clip_min: float = -10,
+                 clip_max: float = 10
+                 ):
         """Initializes the BaseTrainer class.
 
         Args:
@@ -65,6 +56,8 @@ class BaseTrainer(ABC):
             device (torch.device): Device to use.
             log_sampling (float): Fraction of epoch to log.
             eval_sampling (float): Fraction of epoch to run and log eval.
+            clip_min (float): Minimum value to clip.
+            clip_max (float): Maximum value to clip.
 
         """
         self.run_name = run_name
@@ -84,9 +77,71 @@ class BaseTrainer(ABC):
         self.first_batch = 0
         self.running_loss = 0
 
+        self.clip_min = clip_min
+        self.clip_max = clip_max
+        self.plot_bins = list(np.arange(self.clip_min, self.clip_max + 0.1, 0.1))
+
         self.writer = None
 
         self.init_training()
+
+    def online_bins(self,
+                    predictions_bins_count: list[int],
+                    targets_bins_count: list[int],
+                    cross_bins_count: list[int],
+                    predictions: np.array,
+                    targets: np.array) -> tuple[list[int], list[int], list[int]]:
+        """Compute the online bins.
+
+        Args:
+            predictions_bins_count (list[float]): Current count of predictions.
+            targets_bins_count (list[float]): Current count of targets.
+            cross_bins_count (list[float]): Current count of cross bins.
+            predictions (np.array): Predictions.
+            targets (np.array): Targets.
+
+        Returns:
+            list[float]: Online bins.
+
+        """
+        new_predictions_counts = list(np.histogram(predictions, bins=self.plot_bins)[0])
+        new_targets_counts = list(np.histogram(targets, bins=self.plot_bins)[0])
+
+        new_cross_counts = list(np.histogram2d(predictions, targets, bins=[self.plot_bins, self.plot_bins])[0].flatten())
+
+        return (
+            [pred + new_pred for pred, new_pred in zip(predictions_bins_count, new_predictions_counts)],
+            [targ + new_targ for targ, new_targ in zip(targets_bins_count, new_targets_counts)],
+            [cross + new_cross for cross, new_cross in zip(cross_bins_count, new_cross_counts)],
+        )
+
+    def plot_bivariate_distributions(self,
+                                     cross_count: list[int]) -> plt.Figure:
+        """Plot bivariate distributions of predictions and targets.
+
+        Args:
+            cross_count (list[int]): Cross count of predictions and targets.
+
+        Returns:
+            fig: plt.Figure, figure of the plot
+
+        """
+        sns.set_theme(style="darkgrid")
+
+        axes = sns.histplot(
+            data={
+                "predictions": np.repeat(self.plot_bins[:-1], len(self.plot_bins) - 1),
+                "targets": np.tile(self.plot_bins[:-1], len(self.plot_bins) - 1),
+            },
+            x="targets",
+            y="predictions",
+            weights=cross_count,
+            stat="density",
+            bins=self.plot_bins,
+            cbar=True,
+        )
+
+        return axes.figure
 
     def list_existing_models(self) -> list[int]:
         """List the existing models for the given run name.
@@ -167,8 +222,8 @@ class BaseTrainer(ABC):
             len_train (int): Length of the training set.
 
         """
-        self.log_interval = int(len_train * self.log_sampling)
-        self.eval_interval = int(len_train * self.eval_sampling)
+        self.log_interval = int(len_train * self.log_sampling) + 1
+        self.eval_interval = int(len_train * self.eval_sampling) + 1
 
         self.first_epoch = self.resume_step // len_train
         self.first_batch = self.resume_step % len_train
@@ -179,41 +234,145 @@ class BaseTrainer(ABC):
         )
 
     def validation(self,
-                   outputs: np.array,
-                   targets: np.array,
-    ) -> dict[str, dict[str, float]]:
+                   outputs: np.array = None,
+                   targets: np.array = None,
+                   dict_metrics: dict[str, float] = None,
+                   ) -> dict[str, float]:
         """Validation metrics for the model.
 
         Args:
             outputs (np.array): Outputs of the model.
             targets (np.array): Targets of the model.
+            dict_metrics (dict[str, float]): Evaluation metrics computed online.
+
+        Returns:
+            dict[str, float]: Evaluation metrics
+
+        """
+        if dict_metrics:
+            eval_metrics = {}
+            eval_metrics["Distributions/mean_pred_%"] = dict_metrics["mean_outputs"] / dict_metrics["mean_targets"]
+
+            eval_metrics["Distributions/std_pred_%"] = (
+                    ((dict_metrics["mean_squared_outputs"] - dict_metrics["mean_outputs"] ** 2) ** 0.5) /
+                    ((dict_metrics["mean_squared_targets"] - dict_metrics["mean_targets"] ** 2) ** 0.5)
+            )
+
+            eval_metrics["Errors/mean_error"] = dict_metrics["mean_errors"]
+
+            eval_metrics["Errors/std_error"] = (
+                    (dict_metrics["mean_squared_errors"] - dict_metrics["mean_errors"] ** 2) ** 0.5
+            )
+
+            eval_metrics["Errors/root_mean_squared_error"] = dict_metrics["mean_squared_errors"] ** 0.5
+
+            eval_metrics["Errors/mean_absolute_error"] = dict_metrics["mean_absolute_errors"]
+
+            eval_metrics["Errors/std_absolute_error"] = (
+                    (dict_metrics["mean_squared_errors"] - dict_metrics["mean_absolute_errors"] ** 2) ** 0.5
+            )
+
+            return eval_metrics
+
+        eval_metrics = {}
+        errors = (targets - outputs).flatten()
+        squared_errors = errors ** 2
+
+        eval_metrics["Distributions/mean_pred_%"] = np.mean(outputs) / np.mean(
+            targets
+        )
+        eval_metrics["Distributions/std_pred_%"] = np.std(outputs) / np.std(targets)
+
+        eval_metrics["Errors/mean_error"] = np.mean(errors)
+        eval_metrics["Errors/std_error"] = np.std(errors)
+        eval_metrics["Errors/root_mean_squared_error"] = np.sqrt(np.mean(squared_errors))
+        eval_metrics["Errors/mean_absolute_error"] = np.mean(abs(errors))
+        eval_metrics["Errors/std_absolute_error"] = np.std(abs(errors))
+
+        return eval_metrics
+
+    def online_validation(self,
+                          batch_outputs: np.array,
+                          batch_targets: np.array,
+                          dict_metrics: dict[str, float] = None,
+                          ) -> dict[str, float]:
+        """Validation metrics for the model computed online.
+
+        Args:
+            batch_outputs (np.array): Outputs of the model.
+            batch_targets (np.array): Targets of the model.
+            dict_metrics (dict[str, float]): Current evaluation metrics.
 
         Returns:
             dict[str, dict[str, float]]: Evaluation metrics
 
         """
-        eval_scalars = {}
-        errors = (targets - outputs).flatten()
-        squared_errors = errors ** 2
+        if not dict_metrics:
+            dict_metrics = {
+                "n_samples": len(batch_outputs),
+                "mean_outputs": np.mean(batch_outputs),
+                "mean_targets": np.mean(batch_targets),
+                "mean_squared_outputs": np.mean(batch_outputs ** 2),
+                "mean_squared_targets": np.mean(batch_targets ** 2),
+                "mean_errors": np.mean(batch_targets - batch_outputs),
+                "mean_squared_errors": np.mean((batch_targets - batch_outputs) ** 2),
+                "mean_absolute_errors": np.mean(abs(batch_targets - batch_outputs)),
+            }
 
-        eval_scalars["Distributions/mean_pred_%"] = np.mean(outputs) / np.mean(
-            targets
+            return dict_metrics
+
+        errors = (batch_targets - batch_outputs).flatten()
+
+        dict_metrics["mean_outputs"] = online_mean(
+            mean=dict_metrics["mean_outputs"],
+            new_values=batch_outputs,
+            current_size=dict_metrics["n_samples"],
         )
-        eval_scalars["Distributions/std_pred_%"] = np.std(outputs) / np.std(targets)
 
-        eval_scalars["Errors/mean_error"] = np.mean(errors)
-        eval_scalars["Errors/std_error"] = np.std(errors)
-        eval_scalars["Errors/root_mean_squared_error"] = np.sqrt(np.mean(squared_errors))
-        eval_scalars["Errors/root_std_squared_error"] = np.sqrt(np.std(squared_errors))
-        eval_scalars["Errors/mean_absolute_error"] = np.mean(abs(errors))
-        eval_scalars["Errors/std_absolute_error"] = np.std(abs(errors))
+        dict_metrics["mean_targets"] = online_mean(
+            mean=dict_metrics["mean_targets"],
+            new_values=batch_targets,
+            current_size=dict_metrics["n_samples"],
+        )
 
-        return eval_scalars
+        dict_metrics["mean_squared_outputs"] = online_mean(
+            mean=dict_metrics["mean_squared_outputs"],
+            new_values=batch_outputs ** 2,
+            current_size=dict_metrics["n_samples"],
+        )
+
+        dict_metrics["mean_squared_targets"] = online_mean(
+            mean=dict_metrics["mean_squared_targets"],
+            new_values=batch_targets ** 2,
+            current_size=dict_metrics["n_samples"],
+        )
+
+        dict_metrics["mean_errors"] = online_mean(
+            mean=dict_metrics["mean_errors"],
+            new_values=errors,
+            current_size=dict_metrics["n_samples"],
+        )
+
+        dict_metrics["mean_squared_errors"] = online_mean(
+            mean=dict_metrics["mean_squared_errors"],
+            new_values=errors ** 2,
+            current_size=dict_metrics["n_samples"],
+        )
+
+        dict_metrics["mean_absolute_errors"] = online_mean(
+            mean=dict_metrics["mean_absolute_errors"],
+            new_values=abs(errors),
+            current_size=dict_metrics["n_samples"],
+        )
+
+        dict_metrics["n_samples"] += len(batch_outputs)
+
+        return dict_metrics
 
     def training_step(self,
                       outputs: torch.Tensor,
                       targets: torch.Tensor
-    ) -> float:
+                      ) -> float:
         """Training step for the model.
 
         Args:
@@ -235,7 +394,7 @@ class BaseTrainer(ABC):
                   epoch: int,
                   batch_idx: int,
                   len_trainset: int,
-    ) -> None:
+                  ) -> None:
         """Log the training step.
 
         Args:
@@ -257,10 +416,8 @@ class BaseTrainer(ABC):
     def log_eval(self,
                  epoch: int,
                  batch_idx: int,
-                 outputs: np.array,
-                 targets: np.array,
+                 val_dataloader: torch.utils.data.DataLoader,
                  len_trainset: int,
-                 plot_bins: list,
                  hparams: dict,
                  ) -> None:
         """Log the evaluation step.
@@ -268,10 +425,8 @@ class BaseTrainer(ABC):
         Args:
             epoch (int): Current epoch.
             batch_idx (int): Current batch.
-            outputs (np.array): Validation outputs of the model.
-            targets (np.array): Validation targets of the model.
+            val_dataloader (torch.utils.data.DataLoader): Validation dataloader.
             len_trainset (int): Length of the training set.
-            plot_bins (list): Bins for the plot.
             hparams (dict): Hyperparameters to log.
 
         """
@@ -286,18 +441,53 @@ class BaseTrainer(ABC):
             logger.info(f"Running eval on epoch {epoch}, batch {batch_idx}...")
             global_step = epoch * len_trainset + batch_idx
 
+        dict_metrics = None
+        bins_count_outputs = [0] * (len(self.plot_bins)-1)
+        bins_count_targets = [0] * (len(self.plot_bins)-1)
+        bins_count_cross = [0] * ((len(self.plot_bins)-1) ** 2)
+
+        for batch in tqdm(iterable=val_dataloader,
+                          desc="Validation batches",):
+
+            outputs = self.forward_validation_data(batch)
+            targets = (batch["stockfish_eval"]
+                       .flatten()
+                       .clip(min=self.clip_min, max=self.clip_max)
+                       .detach()
+                       .numpy()
+                       )
+
+            dict_metrics = self.online_validation(
+                batch_outputs=outputs,
+                batch_targets=targets,
+                dict_metrics=dict_metrics,
+            )
+
+            bins_count_outputs, bins_count_targets, bins_count_cross = self.online_bins(
+                predictions_bins_count=bins_count_outputs,
+                targets_bins_count=bins_count_targets,
+                cross_bins_count=bins_count_cross,
+                predictions=outputs,
+                targets=targets,
+            )
+
         val_metrics = self.validation(
-            outputs=outputs, targets=targets,
+            dict_metrics=dict_metrics,
         )
 
-        self.writer.add_histogram(
+        self.writer.add_histogram_raw(
             tag="Distributions/outputs",
-            bins="auto",
-            values=outputs,
+            min=self.clip_min,
+            max=self.clip_max,
+            num=sum(bins_count_outputs),
+            sum=dict_metrics["mean_outputs"] * dict_metrics["n_samples"],
+            sum_squares=dict_metrics["mean_squared_outputs"] * dict_metrics["n_samples"],
+            bucket_limits=self.plot_bins[1:],
+            bucket_counts=bins_count_outputs,
             global_step=global_step,
         )
 
-        fig = plot_bivariate_distributions(predictions=outputs, targets=targets, bins=plot_bins)
+        fig = self.plot_bivariate_distributions(cross_count=bins_count_cross)
         self.writer.add_figure(
             tag="Distributions/bivariate", figure=fig, global_step=global_step
         )
@@ -326,7 +516,7 @@ class BaseTrainer(ABC):
 
     def log_validation_data(self,
                             targets: np.array
-    ) -> None:
+                            ) -> None:
         """Log the test data.
 
         Args:
@@ -339,11 +529,11 @@ class BaseTrainer(ABC):
             tag="ValidationData/targets_distribution", bins="auto", values=targets, global_step=0
         )
 
-    def forward_validation_data(self, val_dataloader: torch.utils.data.DataLoader) -> np.array:
+    def forward_validation_data(self, batch) -> np.array:
         """Forward the validation data.
 
         Args:
-            val_dataloader (torch.utils.data.DataLoader): Validation dataloader.
+            batch: Validation batch.
 
         Returns:
             np.array: Validation outputs.

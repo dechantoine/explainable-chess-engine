@@ -6,7 +6,7 @@ authors = ["Antoine Déchappe <dechantoine@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = ">=3.11.9,<3.13"
 loguru = "^0.7.2"
 pandas = "^2.1.4"
 jupyter = "^1.0.0"
@@ -14,7 +14,6 @@ torch = "^2.1.2"
 python-chess = "^1.999"
 tqdm = "^4.66.1"
 torchvision = "^0.17.2"
-tensorboard = "^2.16.2"
 seaborn = "^0.13.2"
 scikit-learn = "^1.4.2"
 protobuf = "4.25.3"
@@ -28,6 +27,9 @@ gradio = "^4.36.0"
 huggingface-hub = "^0.23.3"
 stockfish = "^3.28.0"
 pyarrow = "^17.0.0"
+tensorflow-io = "^0.37.1"
+tensorboard = "^2.17.1"
+tensorflow = "^2.17.0"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^8.1.1"

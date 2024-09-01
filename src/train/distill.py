@@ -34,6 +34,34 @@ class ChessEvalLoss(torch.nn.Module):
             )
         )
 
+    def online_forward(self,
+                       batch_outputs: torch.Tensor = None,
+                       batch_targets: torch.Tensor = None,
+                       current_loss: float = None,
+                       n_samples: int = 0) -> torch.Tensor:
+        """Forward pass of the loss computed online.
+
+        Args:
+            batch_outputs (torch.Tensor): Outputs of the model.
+            batch_targets (torch.Tensor): Targets of the model.
+            current_loss (float): Current loss value.
+            n_samples (int): Number of samples.
+
+        Returns:
+            torch.Tensor: Loss values.
+
+        """
+        if not current_loss:
+            return self(batch_outputs, batch_targets)
+
+        new_n_samples = len(batch_outputs) + n_samples
+
+        loss = ((current_loss * n_samples +
+                 self(batch_outputs, batch_targets).item() * len(batch_outputs))
+                / new_n_samples)
+
+        return torch.Tensor([loss])
+
 
 class DistillTrainer(BaseTrainer):
 
@@ -74,14 +102,22 @@ class DistillTrainer(BaseTrainer):
             clip_max (float): Maximum value to clip the outputs to.
 
         """
-        super().__init__(run_name, checkpoint_dir, log_dir, model, optimizer, loss, device, log_sampling, eval_sampling)
+        super().__init__(run_name,
+                         checkpoint_dir,
+                         log_dir,
+                         model,
+                         optimizer,
+                         loss,
+                         device,
+                         log_sampling,
+                         eval_sampling,
+                         clip_min,
+                         clip_max)
 
         self.eval_column = eval_column
         self.board_column = board_column
         self.active_color_column = active_color_column
         self.castling_column = castling_column
-        self.clip_min = clip_min
-        self.clip_max = clip_max
 
     def train_test_split(self,
                          dataset: ParquetChessDataset,
@@ -107,7 +143,7 @@ class DistillTrainer(BaseTrainer):
             logger.info(f"Stratifying on {self.eval_column}.")
 
             targets = np.array(dataset.data.take(columns=[self.eval_column],
-                                              indices=dataset.indices.tolist())[self.eval_column],
+                                                 indices=dataset.indices.tolist())[self.eval_column],
                                ).clip(min=self.clip_min, max=self.clip_max)
 
             # ensure at least one pair for each targets to be able to perform stratification
@@ -148,16 +184,20 @@ class DistillTrainer(BaseTrainer):
             ParquetChessDataset: The balanced dataset.
 
         """
-        eval_signs = np.array(dataset.data.take(columns=["stockfish_eval"])["stockfish_eval"])
+        eval_signs = np.array(dataset.data.take(
+            indices=dataset.indices.tolist(),
+            columns=["stockfish_eval"])["stockfish_eval"])
         eval_signs = np.sign(eval_signs)
 
         _, sign_counts = np.unique(eval_signs, return_counts=True)
 
-        logger.info(f"Found {sign_counts[0]} negative samples, {sign_counts[1]} zero samples and {sign_counts[2]} positive samples.")
+        logger.info(
+            f"Found {sign_counts[0]} negative samples, {sign_counts[1]} zero samples and {sign_counts[2]} positive samples.")
 
         max_sign = min(sign_counts[0], sign_counts[2])
 
-        logger.info(f"Balancing dataset evaluation signs to {max_sign} positive samples and {max_sign} negative samples.")
+        logger.info(
+            f"Balancing dataset evaluation signs to {max_sign} positive samples and {max_sign} negative samples.")
 
         positive = np.where(eval_signs == 1)[0]
         negative = np.where(eval_signs == -1)[0]
@@ -178,50 +218,100 @@ class DistillTrainer(BaseTrainer):
         return dataset
 
     def validation(self,
-                   outputs: np.array,
-                   targets: np.array,
-                   ) -> dict[str, dict[str, float]]:
+                   outputs: np.array = None,
+                   targets: np.array = None,
+                   dict_metrics: dict[str, float] = None,
+                   ) -> dict[str, float]:
         """Validation metrics for the model."""
-        eval_scalars = super().validation(outputs, targets)
+        eval_metrics = super().validation(outputs=outputs, targets=targets, dict_metrics=dict_metrics)
+
+        if dict_metrics:
+            eval_metrics["Errors/sign_error_rate"] = dict_metrics["nb_sign_error"] / dict_metrics["n_samples"]
+            eval_metrics["Errors/black_sign_error_rate"] = dict_metrics["nb_black_sign_error"] / (dict_metrics[
+                                                                                                      "n_samples"] -
+                                                                                                  dict_metrics[
+                                                                                                      "nb_white_targets"])
+            eval_metrics["Errors/white_sign_error_rate"] = dict_metrics["nb_white_sign_error"] / dict_metrics[
+                "nb_white_targets"]
+
+            eval_metrics["Errors/chess_loss"] = dict_metrics["chess_loss"]
+
+            return eval_metrics
 
         white_outputs = outputs[np.sign(targets) == 1]
         black_outputs = outputs[np.sign(targets) == -1]
 
-        eval_scalars["Errors/sign_error_rate"] = np.mean(np.sign(outputs) != np.sign(targets))
-        eval_scalars["Errors/black_sign_error_rate"] = np.mean(black_outputs > 0)
-        eval_scalars["Errors/white_sign_error_rate"] = np.mean(white_outputs < 0)
+        logger.info(f"White outputs: len : {len(white_outputs)}, values : {white_outputs}")
+        logger.info(f"Black outputs: len : {len(black_outputs)}, values : {black_outputs}")
 
-        eval_scalars["Errors/chess_loss"] = self.loss(torch.tensor(outputs), torch.tensor(targets)).item()
+        eval_metrics["Errors/sign_error_rate"] = np.mean(np.sign(outputs) != np.sign(targets))
+        eval_metrics["Errors/black_sign_error_rate"] = np.mean(black_outputs > 0)
+        eval_metrics["Errors/white_sign_error_rate"] = np.mean(white_outputs < 0)
 
-        return eval_scalars
+        eval_metrics["Errors/chess_loss"] = ChessEvalLoss()(torch.tensor(outputs), torch.tensor(targets)).item()
 
-    def forward_validation_data(self, val_dataloader: torch.utils.data.DataLoader) -> np.array:
-        """Forward the validation data through the model.
+        return eval_metrics
+
+    def online_validation(self,
+                          batch_outputs: np.array,
+                          batch_targets: np.array,
+                          dict_metrics: dict[str, float] = None,
+                          ) -> dict[str, float]:
+        """Validation metrics for the model computed online."""
+        super_dict_metrics = super().online_validation(batch_outputs, batch_targets, dict_metrics)
+
+        white_outputs = batch_outputs[np.sign(batch_targets) == 1]
+        black_outputs = batch_outputs[np.sign(batch_targets) == -1]
+
+        if not dict_metrics:
+            super_dict_metrics["nb_white_targets"] = np.sum(np.sign(batch_targets) == 1)
+            super_dict_metrics["nb_sign_error"] = np.sum(np.sign(batch_outputs) != np.sign(batch_targets))
+            super_dict_metrics["nb_black_sign_error"] = np.sum(black_outputs > 0)
+            super_dict_metrics["nb_white_sign_error"] = np.sum(white_outputs < 0)
+            super_dict_metrics["chess_loss"] = ChessEvalLoss().online_forward(
+                batch_outputs=torch.tensor(batch_outputs),
+                batch_targets=torch.tensor(batch_targets)
+            ).item()
+
+            return super_dict_metrics
+
+        super_dict_metrics["nb_white_targets"] += np.sum(np.sign(batch_targets) == 1)
+        super_dict_metrics["nb_sign_error"] += np.sum(np.sign(batch_outputs) != np.sign(batch_targets))
+        super_dict_metrics["nb_black_sign_error"] += np.sum(black_outputs > 0)
+        super_dict_metrics["nb_white_sign_error"] += np.sum(white_outputs < 0)
+        super_dict_metrics["chess_loss"] = ChessEvalLoss().online_forward(
+            batch_outputs=torch.tensor(batch_outputs),
+            batch_targets=torch.tensor(batch_targets),
+            current_loss=super_dict_metrics["chess_loss"],
+            n_samples=super_dict_metrics["n_samples"] - len(batch_outputs)
+        ).item()
+
+        return super_dict_metrics
+
+    def forward_validation_data(self, batch: dict[str, np.array]) -> np.array:
+        """Forward a batch of validation data through the model.
 
         Args:
-            val_dataloader (torch.utils.data.DataLoader): Validation dataloader.
+            batch (dict[str, np.array]): Batch of validation data.
 
         Returns:
-            np.array: Validation outputs.
+            np.array: Outputs.
 
         """
-        super().forward_validation_data(val_dataloader)
+        super().forward_validation_data(batch)
 
-        validation_outputs = []
-        for i, val_batch in enumerate(val_dataloader):
-            boards = val_batch[self.board_column].to(self.device)
-            active_color = val_batch[self.active_color_column].to(self.device)
-            castling = val_batch[self.castling_column].to(self.device)
-            outputs = self.model((boards, active_color, castling)).detach()
-            validation_outputs.extend(outputs)
+        boards = batch[self.board_column].to(self.device)
+        active_color = batch[self.active_color_column].to(self.device)
+        castling = batch[self.castling_column].to(self.device)
 
-        validation_outputs = (torch.stack(validation_outputs)
-                                   .flatten()
-                                   .clip(min=self.clip_min, max=self.clip_max)
-                                   .detach()
-                                   .numpy())
+        with torch.no_grad():
+            outputs = (self.model((boards, active_color, castling))
+                       .flatten()
+                       .clip(min=self.clip_min, max=self.clip_max)
+                       .detach()
+                       .numpy())
 
-        return validation_outputs
+        return outputs
 
     def training_loop(self,
                       train_dataloader: torch.utils.data.DataLoader,
@@ -240,18 +330,18 @@ class DistillTrainer(BaseTrainer):
 
         self.init_loop_config(len_train=len(train_dataloader))
 
-        validation_targets = []
-        for i, batch in enumerate(val_dataloader):
-            batch_targets = batch[self.eval_column]
-            validation_targets.extend(batch_targets)
+        #validation_targets = []
+        #for i, batch in enumerate(val_dataloader):
+        #    batch_targets = batch[self.eval_column]
+        #    validation_targets.extend(batch_targets)
 
-        validation_targets = (torch.stack(validation_targets)
-                              .flatten()
-                              .clip(min=self.clip_min, max=self.clip_max)
-                              .detach()
-                              .numpy())
+        #validation_targets = (torch.stack(validation_targets)
+        #                      .flatten()
+        #                      .clip(min=self.clip_min, max=self.clip_max)
+        #                      .detach()
+        #                      .numpy())
 
-        self.log_validation_data(targets=validation_targets)
+        #self.log_validation_data(targets=validation_targets)
 
         for epoch in tqdm(
                 iterable=range(self.first_epoch, n_epochs),
@@ -295,16 +385,13 @@ class DistillTrainer(BaseTrainer):
                     self.running_loss = 0.0
 
                 if batch_idx % self.eval_interval == 0 or batch_idx == len(train_dataloader) - 1:
-
-                    validation_outputs = self.forward_validation_data(val_dataloader=val_dataloader)
+                    #validation_outputs = self.forward_validation_data(val_dataloader=val_dataloader)
 
                     self.log_eval(
                         epoch=epoch,
                         batch_idx=batch_idx,
-                        outputs=validation_outputs,
-                        targets=validation_targets,
+                        val_dataloader=val_dataloader,
                         len_trainset=len(train_dataloader),
-                        plot_bins=list(np.arange(self.clip_min, self.clip_max+0.1, 0.1)),
                         hparams={
                             "mode": "distill_stockfish",
                             "model": self.model.__class__.__name__,

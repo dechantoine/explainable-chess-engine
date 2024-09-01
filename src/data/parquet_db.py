@@ -28,7 +28,7 @@ base_fields = ([pa.field(name=piece, type=pa.list_(pa.int64())) for piece in lis
                   pa.field(name="half_moves", type=pa.int64()),
                   pa.field(name="total_moves", type=pa.int64())])
 
-PROCESSING_BATCH_SIZE = 10
+PROCESSING_BATCH_SIZE = 1000
 
 
 def and_filters(filters: list) -> pc.Expression:
@@ -146,6 +146,21 @@ class ParquetChessDB:
                 continue
 
             if not game:
+                for col, func in funcs.items():
+                    df[col] = func(boards)
+
+                pq.write_to_dataset(table=pa.Table.from_pandas(df=df,
+                                                               preserve_index=False),
+                                    schema=pa.schema(fields=base_fields +
+                                                            [pa.field(name="winner", type=pa.int64()),
+                                                             pa.field(name="game_id", type=pa.int64()),
+                                                             pa.field(name="file_id", type=pa.string())] +
+                                                            [pa.field(name=col, type=pa.infer_type(values=df[col]))
+                                                             for col in funcs.keys()]),
+                                    root_path=self.path,
+                                    partition_cols=["file_id"],
+                                    basename_template="part_{{i}}_{batch_id}.parquet".format(batch_id=k))
+
                 break
 
             winner = 1 if game.headers["Result"] == "1-0" else 0 if game.headers["Result"] == "0-1" else -1
@@ -205,7 +220,7 @@ class ParquetChessDB:
         logger.info(f"Found {len(dir)} files in the directory.")
 
         existing_files = self.list_files()
-        existing_files = [file.split("/")[1].split("=")[1] for file in existing_files]
+        existing_files = [file.split("file_id=")[1].split("/")[0] for file in existing_files]
 
         logger.info(f"{len(existing_files)} files already in the database.")
 
