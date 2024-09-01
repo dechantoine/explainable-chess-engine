@@ -87,3 +87,30 @@ class TestDistill(unittest.TestCase):
             np.concatenate([train_set.indices, test_set.indices]),
             self.dataset.indices
         )
+
+    def test_online_validation(self):
+        outputs = np.linspace(-9, 10, 100).reshape(10, 10)
+        targets = np.linspace(-10, 9, 100).reshape(10, 10)
+
+        metrics = None
+
+        for i in range(10):
+            metrics = self.trainer.online_validation(
+                batch_outputs=outputs[i],
+                batch_targets=targets[i],
+                dict_metrics=metrics
+            )
+
+        final_online_metrics = self.trainer.validation(
+            dict_metrics=metrics
+        )
+
+        final_metrics = self.trainer.validation(
+            outputs=outputs.flatten(),
+            targets=targets.flatten()
+        )
+
+        self.assertEqual(len(final_online_metrics), len(final_metrics))
+        self.assertListEqual(list(final_online_metrics.keys()), list(final_metrics.keys()))
+        np.testing.assert_array_almost_equal(np.array(list(final_online_metrics.values())),
+                                             np.array(list(final_metrics.values())), decimal=6)
