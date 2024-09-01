@@ -143,4 +143,3 @@ class ParquetChessDataset(Dataset):
         self.indices = np.random.choice(self.indices, size=new_size, replace=False)
 
         logger.info(f"Downsampled dataset to {new_size} samples.")
-        logger.info(f"New dataset size: {len(self)}")
