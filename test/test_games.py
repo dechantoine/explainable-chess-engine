@@ -1,28 +1,13 @@
 import os
 import unittest
+from test.mock_torch_model import MockModel
 
 import chess.pgn
-import torch
 
 from src.engine.agents.base_agent import BaseAgent
 from src.engine.agents.dl_agent import DLAgent
 from src.engine.agents.stockfish_agent import StockfishAgent
 from src.engine.games import EloEvaluator, Game, Match
-
-
-class MockModel(torch.nn.Module):
-    def __init__(self):
-        super(MockModel, self).__init__()
-        self.flatten = torch.nn.Flatten()
-        self.linear = torch.nn.Linear(in_features=12 * 8 * 8, out_features=1)
-
-    def forward(self, x):
-        x = x.float()
-        x = self.flatten(x)
-        return self.linear(x)
-
-    def model_hash(self):
-        return "mock_model"
 
 
 class GameTestCase(unittest.TestCase):

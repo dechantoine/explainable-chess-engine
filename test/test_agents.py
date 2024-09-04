@@ -1,22 +1,11 @@
 import unittest
+from test.mock_torch_model import MockModel
 
 import chess.pgn
-import torch
 
 from src.engine.agents.dl_agent import DLAgent
 from src.engine.agents.stockfish_agent import StockfishAgent
 
-
-class MockModel(torch.nn.Module):
-    def __init__(self):
-        super(MockModel, self).__init__()
-        self.flatten = torch.nn.Flatten()
-        self.linear = torch.nn.Linear(in_features=12 * 8 * 8, out_features=1)
-
-    def forward(self, x):
-        x = x.float()
-        x = self.flatten(x)
-        return self.linear(x)
 
 class AgentTestCase(unittest.TestCase):
     def setUp(self):
