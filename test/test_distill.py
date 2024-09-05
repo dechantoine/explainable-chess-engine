@@ -1,6 +1,7 @@
 import os
 import shutil
 import unittest
+from test.mock_torch_model import MockModel
 
 import chess.pgn
 import numpy as np
@@ -16,23 +17,6 @@ test_db_dir = "test/test_db"
 
 def lambda_func_board(boards: list[chess.Board]) -> list[float]:
     return [i for i in range(len(boards))]
-
-
-class MockModel(torch.nn.Module):
-    def __init__(self):
-        super(MockModel, self).__init__()
-        self.flatten = torch.nn.Flatten()
-        self.linear = torch.nn.Linear(in_features=12 * 8 * 8 + 4, out_features=1)
-
-    def forward(self, x):
-        board, color, castling = x
-        board = board.float()
-        color = color.float()
-        castling = castling.float()
-        board = self.flatten(board)
-        x = torch.cat((board, color, castling), dim=1)
-        score = self.linear(x) * 10
-        return score
 
 
 class TestDistill(unittest.TestCase):

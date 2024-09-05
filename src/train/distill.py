@@ -395,6 +395,7 @@ class DistillTrainer(BaseTrainer):
                         hparams={
                             "mode": "distill_stockfish",
                             "model": self.model.__class__.__name__,
+                            "model_trainable_params": sum(p.numel() for p in self.model.parameters() if p.requires_grad),
                             "model_hash": self.model.model_hash(),
                             "optimizer": self.optimizer.__class__.__name__,
                             "lr": self.optimizer.state_dict()["param_groups"][0]["lr"],

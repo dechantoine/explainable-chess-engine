@@ -2,6 +2,7 @@ import datetime
 
 import chess.pgn
 import numpy as np
+from loguru import logger
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
@@ -229,6 +230,7 @@ class EloEvaluator:
 
         results = [r["winner"] for r in match.results]
         win_rate = sum([1 if r[1] == str(self.player_1) else 0 for r in results]) / len(results)
+
         self.matches[self.current_stockfish] = {"match": match,
                                                 "win_rate": win_rate}
 
@@ -252,11 +254,15 @@ class EloEvaluator:
             elo (float): the Elo rating
 
         """
+        logger.info(f"Evaluating {str(self.player_1)}'s Elo rating, starting with Stockfish {self.current_stockfish}...")
         current_win_rate = 1
         while current_win_rate > 0.5:
             current_win_rate = self._play_match()
+            logger.info(f"Win rate against Stockfish {self.current_stockfish} : {current_win_rate}")
             self.current_stockfish += self.resolution
+            logger.info(f"Updating Stockfish Elo to {self.current_stockfish}")
         self.current_stockfish -= self.resolution
 
         self.elo = self._compute_elo()
+        logger.info(f"{str(self.player_1)}'s Elo rating: {self.elo}")
         return self.elo

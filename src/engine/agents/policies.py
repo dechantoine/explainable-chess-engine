@@ -11,14 +11,15 @@ def eval_board(model: torch.nn.Module, board: chess.Board) -> float:
     """Evaluate a single board.
 
     Args:
-        model (torch.nn.Module): model to evaluate the board
-        board (chess.Board): board to evaluate
+        model (torch.nn.Module): model to evaluate the board.
+        board (chess.Board): board to evaluate.
 
     Returns:
         float: score of the board
 
     """
-    return model(torch.from_numpy(batch_boards_to_tensor([board]))).item()
+    tensors = batch_boards_to_tensor([board])
+    return float(model(tensors).detach().numpy().flatten()[0])
 
 
 def get_legal_moves(boards: list[chess.Board]) -> list[list[chess.Move]]:
@@ -91,7 +92,7 @@ def one_depth_eval(model: torch.nn.Module, boards: list[chess.Board]) -> tuple:
 
     if len(legal_boards) > 0:
         scores = (
-            model(torch.from_numpy(batch_boards_to_tensor(legal_boards)))
+            model(batch_boards_to_tensor(legal_boards))
             .detach()
             .numpy()
             .flatten()

@@ -3,6 +3,7 @@ import re
 
 import chess.pgn
 import numpy as np
+import torch
 from loguru import logger
 
 dict_pieces = {
@@ -249,27 +250,32 @@ def moves_to_tensor(moves: list[chess.Move]) -> np.array:
 
 
 @logger.catch
-def board_to_tensor(board: chess.Board, from_compact_str: bool = False) -> np.array:
-    """Convert a board to a (12, 8, 8) tensor. The tensor is the one-hot encoding of the board.
+def board_to_tensor(board: chess.Board) -> tuple[np.array, np.array, np.array]:
+    """Convert a board to a tuple of shapes ((12, 8, 8), (1) , (4)). The tuple contains the one-hot encoding of the
+    board, the active color and the castling rights.
 
     Args:
         board (chess.Board): board to convert.
-        from_compact_str (bool, optional): True if the board is in compact string format. Defaults to False.
 
     Returns:
-        np.array: board tensor.
+        tuple[np.array, np.array, np.array]: tuple of tensors.
 
     """
-    if not from_compact_str:
-        board = format_board(board)
-    return np.concatenate(
-        (
-            string_to_array(str_board=board),
-            string_to_array(str_board=board, is_white=False),
-        ),
-        axis=0,
-        dtype=np.int8,
-    )
+    list_board = list(format_board(board))
+
+    idx_white = [np.flatnonzero([1 * (p == piece) for p in list_board]).tolist()
+                 for piece in list(dict_pieces["white"])]
+    idx_black = [np.flatnonzero([1 * (p == piece) for p in list_board]).tolist()
+                 for piece in list(dict_pieces["black"])]
+
+    active_color = 1 * (board.turn == chess.WHITE)
+
+    castling = [board.has_kingside_castling_rights(chess.WHITE) * 1,
+                board.has_queenside_castling_rights(chess.WHITE) * 1,
+                board.has_kingside_castling_rights(chess.BLACK) * 1,
+                board.has_queenside_castling_rights(chess.BLACK) * 1]
+
+    return list_index_to_tensor(idx_white + idx_black), np.array([active_color]), np.array(castling)
 
 
 @logger.catch
@@ -289,24 +295,21 @@ def batch_moves_to_tensor(batch_moves: list[list[chess.Move]]) -> np.array:
 
 @logger.catch
 def batch_boards_to_tensor(
-        batch_boards: list[chess.Board], from_compact_str: bool = False
-) -> np.array:
+        batch_boards: list[chess.Board]
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Convert a batch of boards to a batch of board tensors.
 
     Args:
         batch_boards (list[chess.Board]): batch of boards to convert.
-        from_compact_str (bool, optional): True if the boards are in compact string format. Defaults to False.
 
     Returns:
-        list[np.array]: batch of board tensors.
+        tuple[torch.Tensor, torch.Tensor, torch.Tensor]: tuple of tensors.
 
     """
-    return np.array(
-        [
-            board_to_tensor(board=board, from_compact_str=from_compact_str)
-            for board in batch_boards
-        ]
-    )
+    tensors = [board_to_tensor(board) for board in batch_boards]
+    return (torch.Tensor(np.array([tensors[i][0] for i in range(len(tensors))])),
+            torch.Tensor(np.array([tensors[i][1] for i in range(len(tensors))])),
+            torch.Tensor(np.array([tensors[i][2] for i in range(len(tensors))])))
 
 
 @logger.catch

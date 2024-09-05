@@ -1,8 +1,8 @@
 import unittest
+from test.mock_torch_model import MockModel
 
 import chess.pgn
 import numpy as np
-import torch
 from anytree import AnyNode, LevelOrderGroupIter
 
 from src.engine.agents.policies import (
@@ -13,18 +13,6 @@ from src.engine.agents.policies import (
     one_depth_eval,
     push_legal_moves,
 )
-
-
-class MockModel(torch.nn.Module):
-    def __init__(self):
-        super(MockModel, self).__init__()
-        self.flatten = torch.nn.Flatten()
-        self.linear = torch.nn.Linear(in_features=12 * 8 * 8, out_features=1)
-
-    def forward(self, x):
-        x = x.float()
-        x = self.flatten(x)
-        return self.linear(x)
 
 
 class PoliciesTestCase(unittest.TestCase):
@@ -42,8 +30,6 @@ class PoliciesTestCase(unittest.TestCase):
         score = eval_board(model=self.model, board=self.board)
 
         self.assertIsInstance(score, float)
-        self.assertGreater(score, -1)
-        self.assertLess(score, 1)
 
     def test_get_legal_moves(self):
         legal_moves = get_legal_moves(boards=[self.board, self.board.copy()])

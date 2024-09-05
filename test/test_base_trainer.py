@@ -2,6 +2,7 @@ import os
 import shutil
 import sys
 import unittest
+from test.mock_torch_model import MockModel
 
 import numpy as np
 import torch
@@ -15,23 +16,6 @@ test_db_dir = "test/test_db"
 test_data_dir = "test/test_data"
 test_checkpoint_dir = "test/models_checkpoint"
 test_log_dir = "test/logs"
-
-
-class MockModel(torch.nn.Module):
-    def __init__(self):
-        super(MockModel, self).__init__()
-        self.flatten = torch.nn.Flatten()
-        self.linear = torch.nn.Linear(in_features=12 * 8 * 8 + 4, out_features=1)
-
-    def forward(self, x):
-        board, color, castling = x
-        board = board.float()
-        color = color.float()
-        castling = castling.float()
-        board = self.flatten(board)
-        x = torch.cat((board, color, castling), dim=1)
-        score = self.linear(x) * 10
-        return score
 
 
 class TrainUtilsTestCase(unittest.TestCase):
