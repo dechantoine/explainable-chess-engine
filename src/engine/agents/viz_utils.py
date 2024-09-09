@@ -90,13 +90,13 @@ def plot_save_beam_search(
 
     """
     image_path = os.path.abspath(os.path.join(temp_dir, "root"))
-    logger.info(image_path)
+    # logger.info(image_path)
     save_svg(board=beam.board, filename=image_path, to_png=intermediate_png)
 
     dot = graphviz.Digraph(name=graph_params["name"], format=graph_params["format"])
 
     image_path = image_path + ".png" if intermediate_png else image_path + ".svg"
-    logger.info(image_path)
+    # logger.info(image_path)
     dot.node(
         name="ROOT",
         label="",
@@ -108,14 +108,17 @@ def plot_save_beam_search(
     )
 
     for board in beam.descendants:
-        # a board is pruned if none of its children are at the same depth as the beam height and if it is not at the
-        # beam height
-        is_pruned = not (
-            any(board.depth == beam.height for board in board.descendants)
-        ) and not (board.depth == beam.height)
+        # a board is pruned if none of its children are at the same depth as the beam height
+        # and if it is not at the beam height itself
+        # and if it is not a terminal board itself or its children
+        is_pruned = (
+                not (any(board.depth == beam.height for board in board.descendants))
+                and not (any(board.board.outcome() for board in board.descendants))
+                and not (board.depth == beam.height)
+                and not (board.board.outcome()))
 
         image_path = os.path.abspath(os.path.join(temp_dir, board.name))
-        logger.info(image_path)
+        # logger.info(image_path)
         save_svg(
             board=board.board,
             filename=image_path,
@@ -124,7 +127,7 @@ def plot_save_beam_search(
         )
 
         image_path = image_path + ".png" if intermediate_png else image_path + ".svg"
-        logger.info(image_path)
+        # logger.info(image_path)
         dot.node(
             name=board.name,
             label="score = {:.4f}".format(board.score),
@@ -151,11 +154,11 @@ def plot_save_beam_search(
         # formatter="cairo",
     )
 
-    logger.info(os.listdir(temp_dir))
+    #logger.info(os.listdir(temp_dir))
 
     # log render file
-    with open(filename, "r") as f:
-        logger.info(f.read())
+    #with open(filename, "r") as f:
+    #    logger.info(f.read())
 
     # delete all svg files
     # for file in os.listdir(temp_dir):
