@@ -18,7 +18,7 @@ from src.engine.agents.policies import (
 class PoliciesTestCase(unittest.TestCase):
     def setUp(self):
         self.fen = "rnbqkbnr/ppp1pppp/8/3p4/2PP4/8/PP2PPPP/RNBQKBNR b KQkq - 0 2"
-        self.checkmate_fen = " 1r3rk1/p3bppp/1pb5/2p1p1B1/3P2n1/2P3P1/PP2PPqP/R2QR1K1 w - - 0 16"
+        self.checkmate_fen = "1r3rk1/p3bppp/1pb5/2p1p1B1/3P2n1/2P3P1/PP2PPqP/R2QR1K1 w - - 0 16"
         self.model = MockModel()
         self.board = chess.Board(fen=self.fen)
         self.checkmate_board = chess.Board(fen=self.checkmate_fen)
@@ -77,13 +77,9 @@ class PoliciesTestCase(unittest.TestCase):
             model=self.model, boards=[self.checkmate_board, self.board]
         )
 
-        self.assertEqual(len(legal_boards[0]), 1)
-        self.assertEqual(len(legal_moves[0]), 1)
-        self.assertEqual(len(scores[0]), 1)
-
-        self.assertEqual(legal_boards[0][0], self.checkmate_board)
-        self.assertIsNone(legal_moves[0][0])
-        self.assertEqual(scores[0][0], -1)
+        self.assertEqual(len(legal_boards[0]), 0)
+        self.assertEqual(len(legal_moves[0]), 0)
+        self.assertEqual(len(scores[0]), 0)
 
     def test_beam_sampling(self):
         beam = beam_sampling(
@@ -91,6 +87,7 @@ class PoliciesTestCase(unittest.TestCase):
             scores=[np.linspace(-1, 1, 20).tolist()],
             moves=[[next(self.board.generate_legal_moves()) for _ in range(20)]],
             beam_width=self.beam_width,
+            strategy="greedy",
             is_white=True,
             is_opponent=False,
         )
@@ -110,6 +107,7 @@ class PoliciesTestCase(unittest.TestCase):
             scores=[np.linspace(-1, 1, 20).tolist()],
             moves=[[next(self.board.generate_legal_moves()) for _ in range(20)]],
             beam_width=self.beam_width,
+            strategy="greedy",
             is_white=True,
             is_opponent=True,
         )
@@ -122,6 +120,7 @@ class PoliciesTestCase(unittest.TestCase):
             scores=[np.linspace(-1, 1, 20).tolist()],
             moves=[[next(self.board.generate_legal_moves()) for _ in range(20)]],
             beam_width=self.beam_width,
+            strategy="greedy",
             is_white=False,
             is_opponent=True,
         )

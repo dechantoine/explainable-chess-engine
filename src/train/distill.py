@@ -200,6 +200,7 @@ class DistillTrainer(BaseTrainer):
             f"Balancing dataset evaluation signs to {max_sign} positive samples and {max_sign} negative samples.")
 
         positive = np.where(eval_signs == 1)[0]
+        zero = np.where(eval_signs == 0)[0]
         negative = np.where(eval_signs == -1)[0]
 
         np.random.seed(seed)
@@ -210,7 +211,7 @@ class DistillTrainer(BaseTrainer):
         if len(negative) > max_sign:
             negative = np.random.choice(negative, size=max_sign, replace=False)
 
-        balanced_indices = np.concatenate([positive, negative])
+        balanced_indices = np.concatenate([positive, zero, negative])
 
         dataset.indices = dataset.indices[balanced_indices]
         logger.info(f"New dataset size: {len(dataset)}")

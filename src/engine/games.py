@@ -80,7 +80,7 @@ class Game:
         if outcome.winner:
             self.result["winner"] = str(self.whites)
         elif outcome.winner is None:
-            self.result["winner"] = None
+            self.result["winner"] = "tie"
         else:
             self.result["winner"] = str(self.blacks)
 
@@ -229,7 +229,17 @@ class EloEvaluator:
         match.parallel_play() if self.parallel else match.play()
 
         results = [r["winner"] for r in match.results]
-        win_rate = sum([1 if r[1] == str(self.player_1) else 0 for r in results]) / len(results)
+
+        win_score = []
+        for r in results:
+            if r == str(self.player_1):
+                win_score.append(1)
+            elif r == str(stockfish):
+                win_score.append(0)
+            else:
+                win_score.append(0.5)
+
+        win_rate = np.mean(win_score)
 
         self.matches[self.current_stockfish] = {"match": match,
                                                 "win_rate": win_rate}
