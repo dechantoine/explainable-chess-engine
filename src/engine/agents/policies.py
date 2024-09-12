@@ -131,7 +131,7 @@ def beam_sampling(boards: list[list[chess.Board]],
                   scores: list[list[np.float32]],
                   moves: list[list[chess.Move]],
                   beam_width: int,
-                  strategy: str,
+                  strategy: str = "greedy",
                   top_k: int = 5,
                   is_white: bool = True,
                   is_opponent: bool = False) -> list[dict]:
