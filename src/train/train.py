@@ -1,11 +1,12 @@
 import click
 from loguru import logger
 from torch.nn import MSELoss
-from torch.optim import Adadelta
+from torch.optim import Adadelta, AdamW, lr_scheduler
 from torch.utils.data import DataLoader
 
 from src.data.parquet_dataset import ParquetChessDataset
 from src.models import get_model
+from src.models.multi_input_attention import AttentionModel
 from src.train.distill import ChessEvalLoss, DistillTrainer
 from src.train.reinforcement import RLTrainer
 
@@ -148,12 +149,21 @@ def distill(run_name,
 
     logger.info("Initializing Distillation: model, optimizer, and loss.")
 
-    model = get_model(model_name)
-    optimizer = Adadelta(
+    #model = get_model(model_name)
+    model = AttentionModel()
+
+    optimizer = AdamW(
         params=model.parameters(),
         lr=lr,
+        #amsgrad=True,
     )
-    loss = ChessEvalLoss(power=2)
+
+    scheduler = lr_scheduler.CosineAnnealingLR(optimizer,
+                                        T_max=5,
+                                        eta_min=0.000001,
+                                        verbose=True)
+
+    loss = ChessEvalLoss()
 
     trainer = DistillTrainer(
         run_name=run_name,
@@ -161,6 +171,7 @@ def distill(run_name,
         log_dir=log_dir,
         model=model,
         optimizer=optimizer,
+        scheduler=scheduler,
         loss=loss,
         device="cpu",
         log_sampling=log_sampling,
@@ -178,6 +189,9 @@ def distill(run_name,
     logger.info("Loading data.")
     dataset = ParquetChessDataset(path="./parquet_data",
                                   stockfish_eval=True)
+
+    #dataset.downsampling(seed=42, ratio=0.1)
+
     logger.info(f"Dataset size: {len(dataset)}")
 
     dataset = trainer.balanced_eval_signs(dataset=dataset)
@@ -199,6 +213,9 @@ def distill(run_name,
         shuffle=True,
         collate_fn=collate_fn,
         num_workers=dataloaders_num_workers,
+        prefetch_factor=8,
+        #multiprocessing_context="forkserver",
+        persistent_workers=True
     )
 
     val_dataloader = DataLoader(
@@ -207,6 +224,9 @@ def distill(run_name,
         shuffle=True,
         collate_fn=collate_fn,
         num_workers=dataloaders_num_workers,
+        prefetch_factor=8,
+        #multiprocessing_context="forkserver",
+        persistent_workers=False
     )
 
     logger.info("Starting training loop.")

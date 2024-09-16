@@ -79,6 +79,7 @@ class DistillTrainer(BaseTrainer):
                  board_column: str,
                  active_color_column: str,
                  castling_column: str,
+                 scheduler: torch.optim.lr_scheduler = None,
                  clip_min: float = -10,
                  clip_max: float = 10
                  ):
@@ -90,6 +91,7 @@ class DistillTrainer(BaseTrainer):
             log_dir (str): Directory to save logs.
             model (torch.nn.Module): Model to train.
             optimizer (torch.optim.Optimizer): Optimizer to use.
+            scheduler (torch.optim.lr_scheduler): Scheduler to use.
             loss (torch.nn.Module): Loss function to use.
             device (torch.device): Device to use.
             log_sampling (float): Log every x fraction of epoch.
@@ -118,6 +120,8 @@ class DistillTrainer(BaseTrainer):
         self.board_column = board_column
         self.active_color_column = active_color_column
         self.castling_column = castling_column
+
+        self.scheduler = scheduler
 
     def train_test_split(self,
                          dataset: ParquetChessDataset,
@@ -413,5 +417,8 @@ class DistillTrainer(BaseTrainer):
                             "test_dataset_hash": val_dataloader.dataset.get_hash(),
                         },
                     )
+
+            if self.scheduler:
+                self.scheduler.step()
 
         self.writer.close()
