@@ -8,6 +8,7 @@ import torch
 from loguru import logger
 
 from src.data.data_utils import clean_board
+from src.engine.agents.dl_agent import choose_move_from_beam
 from src.engine.agents.policies import beam_search, eval_board, one_depth_eval
 from src.engine.agents.viz_utils import plot_save_beam_search, save_svg
 from src.models.model_space import MultiInputConv
@@ -65,6 +66,7 @@ def plot_beam_search(board: chess.Board,
 
     Returns:
         Image: image of the beam search tree
+        str: next move according to policy
 
     """
     board = clean_board(board=board)
@@ -79,6 +81,9 @@ def plot_beam_search(board: chess.Board,
                        opponent_top_k=opponent_top_k,
                        min_score=-100,
                        max_score=100)
+
+    next_move = choose_move_from_beam(beam=beam, is_white=board.turn, gamma=0.9)
+
     plot_save_beam_search(
         beam=beam,
         filename=os.path.join(TEMP_DIR, "beam_search"),
@@ -86,7 +91,7 @@ def plot_beam_search(board: chess.Board,
         intermediate_png=False,
     )
 
-    return os.path.join(TEMP_DIR, "beam_search.png")
+    return os.path.join(TEMP_DIR, "beam_search.png"), str(next_move)
 
 
 @logger.catch(level="DEBUG", reraise=True)
@@ -204,13 +209,14 @@ with gr.Blocks() as demo:
 
             with gr.Column():
                 beam = gr.Image()
+                next_move = gr.Textbox(label="Next move according to current policy:", value="")
 
         player_strategy.change(fn=lambda x: gr.update(visible=(x == "top-k")), inputs=[player_strategy], outputs=[player_top_k])
         opponent_strategy.change(fn=lambda x: gr.update(visible=(x == "top-k")), inputs=[opponent_strategy], outputs=[opponent_top_k])
         width_slider.change(fn=lambda x: gr.update(minimum=x + 1, value=x + 1), inputs=[width_slider], outputs=[player_top_k])
         btn.click(fn=plot_beam_search,
                   inputs=[board, depth_slider, width_slider, player_strategy, opponent_strategy, player_top_k, opponent_top_k],
-                  outputs=beam)
+                  outputs=[beam, next_move])
 
 
     with gr.Tab("One-depth eval"):
