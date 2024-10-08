@@ -17,7 +17,8 @@ class ParquetChessDataset(Dataset):
     def __init__(self,
                  path: str,
                  stockfish_eval: bool = True,
-                 winner: bool = False
+                 winner: bool = False,
+                 move_count: bool = False
                  ) -> None:
         """Initializes the ParquetChessDataset class.
 
@@ -25,22 +26,28 @@ class ParquetChessDataset(Dataset):
             path (str): The path to the Parquet file.
             stockfish_eval (bool): Whether to include Stockfish evaluations in outputs.
             winner (bool): Whether to include winner in outputs.
+            move_count (bool): Whether to include move count in outputs.
 
         """
         self.data = ParquetChessDB(path)
         self.indices = np.arange(len(self.data))
-        self.set_columns(stockfish_eval=stockfish_eval, winner=winner)
+        self.set_columns(stockfish_eval=stockfish_eval, winner=winner, move_count=move_count)
 
-    def set_columns(self, stockfish_eval: bool = True, winner: bool = False) -> None:
+    def set_columns(self, stockfish_eval: bool = True,
+                    winner: bool = False,
+                    move_count: bool = False
+                    ) -> None:
         """Sets the columns to include in the dataset outputs.
 
         Args:
             stockfish_eval (bool): Whether to include Stockfish evaluations in outputs.
             winner (bool): Whether to include winner in outputs.
+            move_count (bool): Whether to include move count in outputs.
 
         """
         self.stockfish_eval = stockfish_eval
         self.winner = winner
+        self.move_count = move_count
 
         self.columns = base_columns.copy()
         self.columns.remove("en_passant")
@@ -52,6 +59,11 @@ class ParquetChessDataset(Dataset):
 
         if winner:
             self.columns.append("winner")
+
+        if move_count:
+            self.columns.append("total_moves")
+
+        logger.info(f"ParquetChessDataset columns: {self.columns}")
 
     def __len__(self) -> int:
         """Returns the length of the dataset."""
@@ -94,6 +106,10 @@ class ParquetChessDataset(Dataset):
             t_winner = torch.tensor(data["winner"][0])
             outputs["winner"] = t_winner
 
+        if self.move_count:
+            t_move_count = torch.tensor(data["total_moves"][0])
+            outputs["total_moves"] = t_move_count
+
         return outputs
 
     def __getitems__(self, indices: Union[Tensor, list[int]]) -> dict[str, Tensor]:
@@ -126,6 +142,10 @@ class ParquetChessDataset(Dataset):
         if self.winner:
             t_winners = torch.tensor(data["winner"])
             outputs["winner"] = t_winners
+
+        if self.move_count:
+            t_move_counts = torch.tensor(data["total_moves"])
+            outputs["total_moves"] = t_move_counts
 
         return outputs
 

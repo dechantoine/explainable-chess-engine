@@ -150,12 +150,15 @@ class DistillTrainer(BaseTrainer):
                                                  indices=dataset.indices.tolist())[self.eval_column],
                                ).clip(min=self.clip_min, max=self.clip_max)
 
+            targets = np.sign(targets) * np.log1p(np.abs(targets))
+
             # ensure at least one pair for each targets to be able to perform stratification
             for i in np.arange(3, -1, -1):
                 targets = targets.round(decimals=i)
                 values, counts = np.unique(targets, return_counts=True)
                 if min(counts) > 1:
                     logger.info(f"Stratification successful with {i} decimals.")
+                    values = ((np.exp(np.abs(values))-1) * np.sign(values)).round(decimals=2)
                     dict_counts = dict(zip(values, counts))
                     logger.info(f"Stratification counts: {dict_counts}")
                     break
@@ -165,10 +168,12 @@ class DistillTrainer(BaseTrainer):
 
         train_dataset = ParquetChessDataset(path=dataset.data.path,
                                             stockfish_eval=dataset.stockfish_eval,
-                                            winner=dataset.winner)
+                                            winner=dataset.winner,
+                                            move_count=dataset.move_count)
         test_dataset = ParquetChessDataset(path=dataset.data.path,
                                            stockfish_eval=dataset.stockfish_eval,
-                                           winner=dataset.winner)
+                                           winner=dataset.winner,
+                                           move_count=dataset.move_count)
 
         train_dataset.indices = dataset.indices[train_indices]
         test_dataset.indices = dataset.indices[test_indices]
@@ -334,19 +339,6 @@ class DistillTrainer(BaseTrainer):
         self.model.train()
 
         self.init_loop_config(len_train=len(train_dataloader))
-
-        #validation_targets = []
-        #for i, batch in enumerate(val_dataloader):
-        #    batch_targets = batch[self.eval_column]
-        #    validation_targets.extend(batch_targets)
-
-        #validation_targets = (torch.stack(validation_targets)
-        #                      .flatten()
-        #                      .clip(min=self.clip_min, max=self.clip_max)
-        #                      .detach()
-        #                      .numpy())
-
-        #self.log_validation_data(targets=validation_targets)
 
         for epoch in tqdm(
                 iterable=range(self.first_epoch, n_epochs),

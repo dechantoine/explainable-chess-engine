@@ -13,6 +13,12 @@ from tqdm import tqdm
 CHECKPOINT_PREFIX = "checkpoint_"
 START_FROM_SCRATCH = "Start From Scratch"
 
+chess_palette = {
+    "white": sns.color_palette("bright")[8],
+    "black": sns.color_palette("dark")[7],
+    "both": sns.color_palette()[0]
+}
+
 
 def online_mean(mean: float,
                 new_values: np.array,
@@ -29,6 +35,7 @@ def online_mean(mean: float,
 
     """
     return (mean * current_size + np.sum(new_values)) / (current_size + len(new_values))
+
 
 class BaseTrainer(ABC):
     def __init__(self,
@@ -79,54 +86,53 @@ class BaseTrainer(ABC):
 
         self.clip_min = clip_min
         self.clip_max = clip_max
-        self.plot_bins = list(np.arange(self.clip_min, self.clip_max + 0.1, 0.1))
+        self.plot_bins = list(np.arange(self.clip_min, self.clip_max + 0.5, 0.5))
 
         self.writer = None
 
         self.init_training()
 
     def online_bins(self,
-                    predictions_bins_count: list[int],
-                    targets_bins_count: list[int],
-                    cross_bins_count: list[int],
-                    predictions: np.array,
-                    targets: np.array) -> tuple[list[int], list[int], list[int]]:
+                    bins_count: np.array,
+                    samples: tuple,
+                    bins: list[np.array]
+                    ) -> np.array:
         """Compute the online bins.
 
         Args:
-            predictions_bins_count (list[float]): Current count of predictions.
-            targets_bins_count (list[float]): Current count of targets.
-            cross_bins_count (list[float]): Current count of cross bins.
-            predictions (np.array): Predictions.
-            targets (np.array): Targets.
+            bins_count (np.array): Current count of bins.
+            samples (tuple): Elements to bin.
+            bins (list[np.array]): Bins for each sample.
 
         Returns:
-            list[float]: Online bins.
+            np.array: Online bins.
 
         """
-        new_predictions_counts = list(np.histogram(predictions, bins=self.plot_bins)[0])
-        new_targets_counts = list(np.histogram(targets, bins=self.plot_bins)[0])
+        new_bins_counts = np.histogramdd(
+            sample=samples,
+            bins=bins
+        )[0]
 
-        new_cross_counts = list(np.histogram2d(predictions, targets, bins=[self.plot_bins, self.plot_bins])[0].flatten())
-
-        return (
-            [pred + new_pred for pred, new_pred in zip(predictions_bins_count, new_predictions_counts)],
-            [targ + new_targ for targ, new_targ in zip(targets_bins_count, new_targets_counts)],
-            [cross + new_cross for cross, new_cross in zip(cross_bins_count, new_cross_counts)],
-        )
+        return bins_count + new_bins_counts
 
     def plot_bivariate_distributions(self,
-                                     cross_count: list[int]) -> plt.Figure:
+                                     bins_cross: np.array,
+                                     active_color: str = None) -> plt.Figure:
         """Plot bivariate distributions of predictions and targets.
 
         Args:
-            cross_count (list[int]): Cross count of predictions and targets.
+            bins_cross (np.array): Cross count of predictions and targets.
+            active_color (str): Active color
 
         Returns:
             fig: plt.Figure, figure of the plot
 
         """
         sns.set_theme(style="darkgrid")
+
+        color = None
+        if active_color:
+            color = chess_palette[active_color]
 
         axes = sns.histplot(
             data={
@@ -135,11 +141,208 @@ class BaseTrainer(ABC):
             },
             x="targets",
             y="predictions",
-            weights=cross_count,
+            weights=list(bins_cross.flatten()),
             stat="density",
             bins=self.plot_bins,
             cbar=True,
+            color=color
         )
+
+        return axes.figure
+
+    def plot_sign_error_per_target(self,
+                                   bins_cross: np.array) -> plt.Figure:
+        """Plot sign error per target.
+
+        Args:
+            bins_cross (np.array): Cross count of predictions and targets.
+
+        Returns:
+            fig: plt.Figure, figure of the plot
+
+        """
+        sns.set_theme(style="darkgrid")
+
+        half_n_bins = int((len(self.plot_bins) - 1) / 2)
+        cross_count = np.flip(bins_cross, axis=0)
+
+        full_count = cross_count.sum(axis=2)
+        white_count = cross_count[:, :, 1]
+        black_count = cross_count[:, :, 0]
+
+        percent_errors = []
+
+        for counts in [full_count, white_count, black_count]:
+            neg_percent_errors = counts[:half_n_bins, :half_n_bins].sum(axis=0) / counts[:, :half_n_bins].sum(
+                axis=0)
+            pos_percent_errors = counts[half_n_bins:, half_n_bins:].sum(axis=0) / counts[:, half_n_bins:].sum(
+                axis=0)
+
+            percent_errors = np.concatenate([percent_errors, neg_percent_errors, pos_percent_errors])
+
+        axes = sns.lineplot(
+            data={
+                "target": np.tile(self.plot_bins[:-1], 3),
+                "sign error rate": percent_errors,
+                "player": np.repeat(["both", "white", "black"], len(self.plot_bins[:-1]))
+            },
+            x="target",
+            y="sign error rate",
+            hue="player",
+            palette=chess_palette,
+            alpha=0.5
+        )
+
+        axes.set_xlim(self.clip_min - 0.2, self.clip_max + 0.2)
+        axes.set_ylim(0 - 0.05, 1 + 0.05)
+
+        return axes.figure
+
+    def plot_sign_error_per_moves(self,
+                                  cross_count_moves: np.array) -> plt.Figure:
+        """Plot sign error per move count.
+
+        Args:
+            cross_count_moves (np.array): Cross count of predictions and targets per move count.
+
+        Returns:
+            fig: plt.Figure, figure of the plot
+
+        """
+        sns.set_theme(style="darkgrid")
+
+        half_n_bins = int((len(self.plot_bins) - 1) / 2)
+
+        cross_count_moves = np.flip(cross_count_moves, axis=0)
+
+        full_count = cross_count_moves.sum(axis=3)
+        white_count = cross_count_moves[:, :, :, 1]
+        black_count = cross_count_moves[:, :, :, 0]
+
+        percent_errors_moves = []
+
+        for counts in [full_count, white_count, black_count]:
+            neg_errors = counts[:half_n_bins, :half_n_bins, :].sum(axis=(0, 1))
+            pos_errors = counts[half_n_bins:, half_n_bins:, :].sum(axis=(0, 1))
+
+            percent_errors = (neg_errors + pos_errors) / counts.sum(axis=(0, 1))
+
+            percent_errors_moves = np.concatenate([percent_errors_moves, percent_errors])
+
+        axes = sns.lineplot(
+            data={
+                "moves count": np.tile(list(np.arange(1, 125, 1)), 3),
+                "sign error rate": percent_errors_moves,
+                "player": np.repeat(["both", "white", "black"], 124)
+            },
+            x="moves count",
+            y="sign error rate",
+            hue="player",
+            palette=chess_palette,
+            alpha=0.5
+        )
+
+        axes.set_xlim(0, 125)
+        axes.set_ylim(0 - 0.05, 1 + 0.05)
+
+        return axes.figure
+
+    def plot_sign_error_per_pieces(self,
+                                   cross_count_pieces: np.array) -> plt.Figure:
+        """Plot sign error per number of pieces on board.
+
+        Args:
+            cross_count_pieces (np.array): Cross count of predictions and targets per number of pieces on board.
+
+        Returns:
+            fig: plt.Figure, figure of the plot
+
+        """
+        sns.set_theme(style="darkgrid")
+
+        half_n_bins = int((len(self.plot_bins) - 1) / 2)
+
+        cross_count_pieces = np.flip(cross_count_pieces, axis=0)
+
+        full_count = cross_count_pieces.sum(axis=3)
+        white_count = cross_count_pieces[:, :, :, 1]
+        black_count = cross_count_pieces[:, :, :, 0]
+
+        percent_errors_moves = []
+
+        for counts in [full_count, white_count, black_count]:
+            neg_errors = counts[:half_n_bins, :half_n_bins, :].sum(axis=(0, 1))
+            pos_errors = counts[half_n_bins:, half_n_bins:, :].sum(axis=(0, 1))
+
+            percent_errors = (neg_errors + pos_errors) / counts.sum(axis=(0, 1))
+
+            percent_errors_moves = np.concatenate([percent_errors_moves, percent_errors])
+
+        axes = sns.lineplot(
+            data={
+                "number of pieces": np.tile(list(np.arange(1, 33, 1)), 3),
+                "sign error rate": percent_errors_moves,
+                "player": np.repeat(["both", "white", "black"], 32)
+            },
+            x="number of pieces",
+            y="sign error rate",
+            hue="player",
+            palette=chess_palette,
+            alpha=0.5
+        )
+
+        axes.set_xlim(0.5, 32.5)
+        axes.invert_xaxis()
+        axes.set_ylim(0 - 0.05, 1 + 0.05)
+
+        return axes.figure
+
+    def plot_sign_error_per_diff(self,
+                                   cross_count_diff: np.array) -> plt.Figure:
+        """Plot sign error per difference of pieces on board.
+
+        Args:
+            cross_count_diff (np.array): Cross count of predictions and targets per number of pieces on board.
+
+        Returns:
+            fig: plt.Figure, figure of the plot
+
+        """
+        sns.set_theme(style="darkgrid")
+
+        half_n_bins = int((len(self.plot_bins) - 1) / 2)
+
+        cross_count_diff = np.flip(cross_count_diff, axis=0)
+
+        full_count = cross_count_diff.sum(axis=3)
+        white_count = cross_count_diff[:, :, :, 1]
+        black_count = cross_count_diff[:, :, :, 0]
+
+        percent_errors_moves = []
+
+        for counts in [full_count, white_count, black_count]:
+            neg_errors = counts[:half_n_bins, :half_n_bins, :].sum(axis=(0, 1))
+            pos_errors = counts[half_n_bins:, half_n_bins:, :].sum(axis=(0, 1))
+
+            percent_errors = (neg_errors + pos_errors) / counts.sum(axis=(0, 1))
+
+            percent_errors_moves = np.concatenate([percent_errors_moves, percent_errors])
+
+        axes = sns.lineplot(
+            data={
+                "difference of pieces": np.tile(list(np.arange(-15, 16, 1)), 3),
+                "sign error rate": percent_errors_moves,
+                "player": np.repeat(["both", "white", "black"], 31)
+            },
+            x="difference of pieces",
+            y="sign error rate",
+            hue="player",
+            palette=chess_palette,
+            alpha=0.5
+        )
+
+        axes.set_xlim(-15.5, 15.5)
+        axes.set_ylim(0 - 0.05, 1 + 0.05)
 
         return axes.figure
 
@@ -442,14 +645,38 @@ class BaseTrainer(ABC):
             global_step = epoch * len_trainset + batch_idx
 
         dict_metrics = None
-        bins_count_outputs = [0] * (len(self.plot_bins)-1)
-        bins_count_targets = [0] * (len(self.plot_bins)-1)
-        bins_count_cross = [0] * ((len(self.plot_bins)-1) ** 2)
+        bins_count_moves = np.zeros(shape=(len(self.plot_bins) - 1,
+                                           len(self.plot_bins) - 1,
+                                           124,
+                                           2))
+        bins_moves = [self.plot_bins,
+                      self.plot_bins,
+                      np.arange(1, 126, 1)-0.5,
+                      [-0.5, 0.5, 1.5]]
+
+        bins_count_pieces = np.zeros(shape=(len(self.plot_bins) - 1,
+                                            len(self.plot_bins) - 1,
+                                            32,
+                                            2))
+        bins_pieces = [self.plot_bins,
+                       self.plot_bins,
+                       np.arange(1, 34, 1)-0.5,
+                       [-0.5, 0.5, 1.5]]
+
+        bins_count_diff = np.zeros(shape=(len(self.plot_bins) - 1,
+                                          len(self.plot_bins) - 1,
+                                          31,
+                                          2))
+
+        bins_diff = [self.plot_bins,
+                     self.plot_bins,
+                     np.arange(-15, 17, 1) - 0.5,
+                     [-0.5, 0.5, 1.5]]
 
         for batch in tqdm(iterable=val_dataloader,
-                          desc="Validation batches",):
-
+                          desc="Validation batches", ):
             outputs = self.forward_validation_data(batch)
+
             targets = (batch["stockfish_eval"]
                        .flatten()
                        .clip(min=self.clip_min, max=self.clip_max)
@@ -457,24 +684,57 @@ class BaseTrainer(ABC):
                        .numpy()
                        )
 
+            moves_count = (batch["total_moves"]
+                           .flatten()
+                           .detach()
+                           .numpy()
+                           )
+
+            boards = ((batch["board"]
+                      .detach())
+                      .numpy())
+
+            nb_pieces = (boards
+                         .sum(axis=(1, 2, 3))
+                         )
+
+            diff_pieces = (boards[:, :6, :, :] - boards[:, 6:, :, :]).sum(axis=(1, 2, 3))
+
+            active_colors = (batch["active_color"]
+                             .flatten()
+                             .detach()
+                             .numpy()
+                             )
+
             dict_metrics = self.online_validation(
                 batch_outputs=outputs,
                 batch_targets=targets,
                 dict_metrics=dict_metrics,
             )
 
-            bins_count_outputs, bins_count_targets, bins_count_cross = self.online_bins(
-                predictions_bins_count=bins_count_outputs,
-                targets_bins_count=bins_count_targets,
-                cross_bins_count=bins_count_cross,
-                predictions=outputs,
-                targets=targets,
+            bins_count_moves = self.online_bins(
+                bins_count=bins_count_moves,
+                samples=(outputs, targets, moves_count, active_colors),
+                bins=bins_moves
+            )
+
+            bins_count_pieces = self.online_bins(
+                bins_count=bins_count_pieces,
+                samples=(outputs, targets, nb_pieces, active_colors),
+                bins=bins_pieces
+            )
+
+            bins_count_diff = self.online_bins(
+                bins_count=bins_count_diff,
+                samples=(outputs, targets, diff_pieces, active_colors),
+                bins=bins_diff
             )
 
         val_metrics = self.validation(
             dict_metrics=dict_metrics,
         )
 
+        bins_count_outputs = bins_count_moves.sum(axis=(1, 2, 3))
         self.writer.add_histogram_raw(
             tag="Distributions/outputs",
             min=self.clip_min,
@@ -487,9 +747,54 @@ class BaseTrainer(ABC):
             global_step=global_step,
         )
 
-        fig = self.plot_bivariate_distributions(cross_count=bins_count_cross)
+        bins_count_targets = bins_count_moves.sum(axis=(0, 2, 3))
+        self.writer.add_histogram_raw(
+            tag="Distributions/targets",
+            min=self.clip_min,
+            max=self.clip_max,
+            num=sum(bins_count_targets),
+            sum=dict_metrics["mean_targets"] * dict_metrics["n_samples"],
+            sum_squares=dict_metrics["mean_squared_targets"] * dict_metrics["n_samples"],
+            bucket_limits=self.plot_bins[1:],
+            bucket_counts=bins_count_targets,
+            global_step=global_step,
+        )
+
+        fig = self.plot_bivariate_distributions(bins_cross=bins_count_moves.sum(axis=(2, 3)))
         self.writer.add_figure(
-            tag="Distributions/bivariate", figure=fig, global_step=global_step
+            tag="Distributions/bivariate_all", figure=fig, global_step=global_step
+        )
+
+        fig = self.plot_bivariate_distributions(bins_cross=bins_count_moves.sum(axis=2)[:, :, 1],
+                                                active_color="white")
+        self.writer.add_figure(
+            tag="Distributions/bivariate_white", figure=fig, global_step=global_step
+        )
+
+        fig = self.plot_bivariate_distributions(bins_cross=bins_count_moves.sum(axis=2)[:, :, 0],
+                                                active_color="black")
+        self.writer.add_figure(
+            tag="Distributions/bivariate_black", figure=fig, global_step=global_step
+        )
+
+        fig = self.plot_sign_error_per_target(bins_cross=bins_count_moves.sum(axis=2))
+        self.writer.add_figure(
+            tag="Errors/sign_error_per_target", figure=fig, global_step=global_step
+        )
+
+        fig = self.plot_sign_error_per_moves(cross_count_moves=bins_count_moves)
+        self.writer.add_figure(
+            tag="Errors/sign_error_per_move_count", figure=fig, global_step=global_step
+        )
+
+        fig = self.plot_sign_error_per_pieces(cross_count_pieces=bins_count_pieces)
+        self.writer.add_figure(
+            tag="Errors/sign_error_per_pieces", figure=fig, global_step=global_step
+        )
+
+        fig = self.plot_sign_error_per_diff(cross_count_diff=bins_count_diff)
+        self.writer.add_figure(
+            tag="Errors/sign_error_per_diff", figure=fig, global_step=global_step
         )
 
         self.writer.add_hparams(
@@ -512,21 +817,6 @@ class BaseTrainer(ABC):
                 "loss": self.loss,
             },
             f=f"./{self.checkpoint_dir}/{self.run_name}/{CHECKPOINT_PREFIX}{global_step}.pt",
-        )
-
-    def log_validation_data(self,
-                            targets: np.array
-                            ) -> None:
-        """Log the test data.
-
-        Args:
-            targets (np.array): Targets to log.
-
-        """
-        logger.info("Logging validation data...")
-
-        self.writer.add_histogram(
-            tag="ValidationData/targets_distribution", bins="auto", values=targets, global_step=0
         )
 
     def forward_validation_data(self, batch) -> np.array:

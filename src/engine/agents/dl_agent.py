@@ -3,11 +3,69 @@ import hashlib
 import chess.pgn
 import numpy as np
 import torch
-from anytree import LevelOrderGroupIter, LevelOrderIter, findall_by_attr
+from anytree import AnyNode, LevelOrderGroupIter, LevelOrderIter, PreOrderIter
 from loguru import logger
 
 from src.engine.agents.base_agent import BaseAgent
 from src.engine.agents.policies import beam_search, eval_board
+
+
+def choose_move_from_beam(beam: AnyNode,
+                          is_white: bool = True,
+                          gamma: float = 0.9,
+                          max_score: int = 100,
+                          min_score: int = -100) -> chess.Move:
+    """Choose a move from the beam search tree.
+
+    Args:
+        beam(AnyNode): beam search tree
+        is_white (bool): is the player white
+        gamma (float): discount factor
+        max_score (int): maximum score
+        min_score (int): minimum score
+
+    Returns:
+        chess.Move: best move
+
+    """
+    beam_mean_score = np.mean([node.score for node in list(LevelOrderIter(beam))][1:])
+    # first check if an immediate move leads to checkmate or tie
+    for node in list(LevelOrderGroupIter(beam))[1]:
+        if node.board.outcome():
+            if is_white:
+                if node.board.outcome().result() == "1-0":
+                    return node.move
+                if node.board.outcome().result() == "1/2-1/2" and beam_mean_score < 0:
+                    return node.move
+            else:
+                if node.board.outcome().result() == "0-1":
+                    return node.move
+                if node.board.outcome().result() == "1/2-1/2" and beam_mean_score > 0:
+                    return node.move
+
+    # tag each leaf node with "finished" attribute if it is at max depth or checkmate for the player
+    max_depth = max([node.depth for node in list(LevelOrderIter(beam))])
+    for node in list(LevelOrderIter(beam)):
+        node.finished = False
+        if node.depth == max_depth:
+            node.finished = True
+        elif node.board.outcome():
+            node.finished = True
+
+    # get weighted average of scores for each immediate move
+    w_scores = [
+        sum([node.score * (gamma ** node.depth) if node.finished else 0
+             for node in list(PreOrderIter(immediate_move))])
+        for immediate_move in list(LevelOrderGroupIter(beam))[1]]
+
+    # TODO: implement a tie-breaker
+    candidate_moves = list(LevelOrderGroupIter(beam))[1]
+    if is_white:
+        best_node = candidate_moves[np.argmax([score if score != 0 else min_score for score in w_scores])]
+    else:
+        best_node = candidate_moves[np.argmin([score if score != 0 else max_score for score in w_scores])]
+
+    return best_node.move
 
 
 class DLAgent(BaseAgent):
@@ -22,7 +80,6 @@ class DLAgent(BaseAgent):
                  beam_opponent_top_k: int = 1,
                  name: str = None
                  ) -> None:
-
         super().__init__(is_white)
         self.model = model
         self.model.eval()
@@ -34,6 +91,8 @@ class DLAgent(BaseAgent):
         self.beam_opponent_top_k = beam_opponent_top_k
 
         self.name = name
+
+        self.gamma = 0.9
 
         self.set_min_max_score()
 
@@ -54,46 +113,11 @@ class DLAgent(BaseAgent):
                            min_score=self.min_score,
                            max_score=self.max_score)
 
-        beam_mean_score = np.mean([node.score for node in list(LevelOrderIter(beam))][1:])
-
-        # first check if an immediate move leads to checkmate or tie
-        for node in list(LevelOrderGroupIter(beam))[1]:
-            if node.board.outcome():
-                if self.is_white:
-                    if node.board.outcome().result() == "1-0":
-                        logger.info(f"Immediate checkmate for {self}")
-                        return node.move
-                    if node.board.outcome().result() == "1/2-1/2" and beam_mean_score < 0:
-                        logger.info(f"Immediate tie for {self}")
-                        return node.move
-                else:
-                    if node.board.outcome().result() == "0-1":
-                        logger.info(f"Immediate checkmate for {self}")
-                        return node.move
-                    if node.board.outcome().result() == "1/2-1/2" and beam_mean_score > 0:
-                        logger.info(f"Immediate tie for {self}")
-                        return node.move
-
-
-        # tag each leaf node with "finished" attribute if it is at max depth or checkmate for the player
-        max_depth = max([node.depth for node in list(LevelOrderIter(beam))])
-        for node in list(LevelOrderIter(beam)):
-            if node.depth == max_depth:
-                node.finished = True
-            elif node.board.outcome():
-                if node.board.outcome().result() == "1-0" and self.is_white:
-                    node.finished = True
-                elif node.board.outcome().result() == "0-1" and not self.is_white:
-                    node.finished = True
-
-        # identify moves with most finishing nodes
-        nb_finished_nodes = [len(findall_by_attr(name="finished", value=True, node=node))
-                             for node in list(LevelOrderGroupIter(beam))[1]]
-
-        # TODO: implement a tie-breaker
-        best_node = list(LevelOrderGroupIter(beam))[1][np.argmax(nb_finished_nodes)]
-
-        return best_node.move
+        return choose_move_from_beam(beam=beam,
+                                     is_white=self.is_white,
+                                     gamma=self.gamma,
+                                     max_score=self.max_score,
+                                     min_score=self.min_score)
 
     def evaluate_board(self, board: chess.Board) -> float:
         return eval_board(self.model, board)
