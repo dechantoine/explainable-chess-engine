@@ -196,6 +196,9 @@ class ParquetChessDB:
                 df = pd.DataFrame(columns=base_columns
                                           + ["winner", "game_id", "file_id"])
 
+                self._load()
+                return
+
             game_id += 1
 
         self._load()

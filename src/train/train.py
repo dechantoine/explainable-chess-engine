@@ -180,6 +180,8 @@ def distill(run_name,
         board_column="board",
         active_color_column="active_color",
         castling_column="castling",
+        clip_min=-50.0,
+        clip_max=50.0,
     )
 
     logger.info(
@@ -188,9 +190,10 @@ def distill(run_name,
 
     logger.info("Loading data.")
     dataset = ParquetChessDataset(path="./parquet_data",
-                                  stockfish_eval=True)
+                                  stockfish_eval=True,
+                                  move_count=True)
 
-    #dataset.downsampling(seed=42, ratio=0.1)
+    #dataset.downsampling(seed=42, ratio=0.01)
 
     logger.info(f"Dataset size: {len(dataset)}")
 
