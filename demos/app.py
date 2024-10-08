@@ -27,13 +27,28 @@ model.eval()
 
 os.makedirs(name=TEMP_DIR, exist_ok=True)
 
+def same_board_opponent_to_play(board: str) -> str:
+    """Return a FEN board with the opponent to play.
+
+    Args:
+        board (str): FEN or PGN board
+
+    Returns:
+        str: FEN board with the opponent to play
+
+    """
+    board = clean_board(board=board)
+    board_copy = board.copy()
+    board_copy.turn = not board_copy.turn
+    return board_copy.fen()
+
 
 @logger.catch(level="DEBUG", reraise=True)
-def evaluate_board(board: chess.Board):
+def evaluate_board(board: str):
     """Evaluate the board.
 
     Args:
-        board (chess.Board): chess.Board object
+        board (str): FEN or PGN board
 
     Returns:
         float: score of the board
@@ -46,7 +61,7 @@ def evaluate_board(board: chess.Board):
 
 
 @logger.catch(level="DEBUG", reraise=True)
-def plot_beam_search(board: chess.Board,
+def plot_beam_search(board: str,
                      depth: int,
                      beam_width: int,
                      player_strategy: str,
@@ -56,7 +71,7 @@ def plot_beam_search(board: chess.Board,
     """Plot the beam search tree.
 
     Args:
-        board (chess.Board): chess.Board object
+        board (str): FEN or PGN board
         depth (int): depth of the search
         beam_width (int): width of the beam
         player_strategy (str): sampling strategy
@@ -162,14 +177,18 @@ def update_top_k_visibility(strategy):
 with gr.Blocks() as demo:
     gr.Markdown("Explore the model")
     with gr.Tab("Beam search"):
+
+        # Layout
         with gr.Row():
 
-            with gr.Column():
+            with gr.Column(scale=1):
 
                 board = gr.Textbox(
                     value="rnbqkbnr/ppp1pppp/8/3p4/2PP4/8/PP2PPPP/RNBQKBNR b KQkq - 0 2",
                     label="Provide FEN or PGN board:",
                 )
+                btn_change = gr.Button("Change board to opponent to play")
+
                 depth_slider = gr.Slider(value=4, minimum=1, maximum=10, step=1, label="Choose beam depth")
                 width_slider = gr.Slider(value=4, minimum=1, maximum=10, step=1, label="Choose beam width")
 
@@ -207,10 +226,14 @@ with gr.Blocks() as demo:
 
                 btn = gr.Button("Run beam search")
 
-            with gr.Column():
-                beam = gr.Image()
                 next_move = gr.Textbox(label="Next move according to current policy:", value="")
 
+            with gr.Column(scale=2):
+                beam = gr.Image()
+                #next_move = gr.Textbox(label="Next move according to current policy:", value="")
+
+        # Events
+        btn_change.click(fn=lambda x: gr.update(value=same_board_opponent_to_play(x)), inputs=[board], outputs=[board])
         player_strategy.change(fn=lambda x: gr.update(visible=(x == "top-k")), inputs=[player_strategy], outputs=[player_top_k])
         opponent_strategy.change(fn=lambda x: gr.update(visible=(x == "top-k")), inputs=[opponent_strategy], outputs=[opponent_top_k])
         width_slider.change(fn=lambda x: gr.update(minimum=x + 1, value=x + 1), inputs=[width_slider], outputs=[player_top_k])
@@ -222,10 +245,17 @@ with gr.Blocks() as demo:
     with gr.Tab("One-depth eval"):
         moves = gr.State(value=[])
 
-        board = gr.Textbox(
-            value="rnbqkbnr/ppp1pppp/8/3p4/2PP4/8/PP2PPPP/RNBQKBNR b KQkq - 0 2",
-            label="Provide FEN or PGN board:",
-        )
+        with gr.Row():
+            with gr.Column(scale=2):
+
+                board = gr.Textbox(
+                    value="rnbqkbnr/ppp1pppp/8/3p4/2PP4/8/PP2PPPP/RNBQKBNR b KQkq - 0 2",
+                    label="Provide FEN or PGN board:",
+                )
+
+            with gr.Column(scale=1):
+                btn_change = gr.Button("Change board to opponent to play")
+
         btn = gr.Button("Get one-depth evaluation")
 
         gallery = gr.Gallery(
@@ -243,22 +273,32 @@ with gr.Blocks() as demo:
 
         btn_replace = gr.Button("Append selected move and run evaluation")
 
+        btn_change.click(fn=lambda x: gr.update(value=same_board_opponent_to_play(x)), inputs=[board], outputs=[board])
         btn.click(fn=get_one_depth_eval, inputs=[board], outputs=[gallery, dropdown, moves])
         gallery.select(fn=select_dropdown_item, inputs=[moves], outputs=dropdown)
         btn_replace.click(fn=update_run_fen, inputs=[board, dropdown], outputs=[board, gallery, dropdown, moves])
 
     with gr.Tab("Score a board"):
-        gr.Interface(
-            fn=evaluate_board,
-            inputs=[
-                gr.Textbox(
+
+        # Layout
+        with gr.Row():
+            with gr.Column():
+                board = gr.Textbox(
                     value="rnbqkbnr/ppp1pppp/8/3p4/2PP4/8/PP2PPPP/RNBQKBNR b KQkq - 0 2",
                     label="Provide FEN or PGN board:",
-                ),
-            ],
-            outputs=["image", "text"],
-            allow_flagging="never",
-        )
+                )
+
+                btn_change = gr.Button("Change board to opponent to play")
+
+                btn = gr.Button("Evaluate board")
+
+            with gr.Column():
+                image = gr.Image()
+                text = gr.Textbox(label="Score of the board:", value="")
+
+        # Events
+        btn_change.click(fn=lambda x: gr.update(value=same_board_opponent_to_play(x)), inputs=[board], outputs=[board])
+        btn.click(fn=evaluate_board, inputs=[board], outputs=[image, text])
 
 if __name__ == "__main__":
     demo.launch()
