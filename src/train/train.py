@@ -6,7 +6,6 @@ from torch.utils.data import DataLoader
 
 from src.data.parquet_dataset import ParquetChessDataset
 from src.models import get_model
-from src.models.multi_input_attention import AttentionModel
 from src.train.distill import ChessEvalLoss, DistillTrainer
 from src.train.reinforcement import RLTrainer
 
@@ -149,8 +148,8 @@ def distill(run_name,
 
     logger.info("Initializing Distillation: model, optimizer, and loss.")
 
-    #model = get_model(model_name)
-    model = AttentionModel()
+    model = get_model(model_name)
+    #model = AttentionModel()
 
     optimizer = AdamW(
         params=model.parameters(),
@@ -210,10 +209,18 @@ def distill(run_name,
     logger.info(f"Train dataset size: {len(train_dataset)}")
     logger.info(f"Validation dataset size: {len(val_dataset)}")
 
+    train_dataset.persist(path="temp/train_dataset",
+                          multiple_files=True,
+                          lines_per_file=batch_size*100)
+
+    val_dataset.persist(path="temp/val_dataset",
+                        multiple_files=True,
+                        lines_per_file=batch_size*100)
+
     train_dataloader = DataLoader(
         train_dataset,
         batch_size=batch_size,
-        shuffle=True,
+        shuffle=False,
         collate_fn=collate_fn,
         num_workers=dataloaders_num_workers,
         prefetch_factor=8,
@@ -224,7 +231,7 @@ def distill(run_name,
     val_dataloader = DataLoader(
         val_dataset,
         batch_size=batch_size,
-        shuffle=True,
+        shuffle=False,
         collate_fn=collate_fn,
         num_workers=dataloaders_num_workers,
         prefetch_factor=8,

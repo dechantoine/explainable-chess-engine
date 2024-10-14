@@ -122,7 +122,8 @@ class ParquetChessDataset(Dataset):
         data = self.data.take(indices=indices,
                               columns=self.columns)
 
-        board_indexes = [[data[piece][i] for key in dict_pieces for piece in dict_pieces[key]] for i in range(len(indices))]
+        board_indexes = [[data[piece][i] for key in dict_pieces for piece in dict_pieces[key]] for i in
+                         range(len(indices))]
 
         t_boards = torch.from_numpy(np.array([list_index_to_tensor(b) for b in board_indexes]))
 
@@ -163,3 +164,28 @@ class ParquetChessDataset(Dataset):
         self.indices = np.random.choice(self.indices, size=new_size, replace=False)
 
         logger.info(f"Downsampled dataset to {new_size} samples.")
+
+    def persist(self,
+                path: str,
+                multiple_files: bool = False,
+                lines_per_file: int = 10000) -> None:
+        """Persists the dataset to a given path.
+
+        Args:
+            path (str): The path to persist the dataset.
+            multiple_files (bool): Whether to persist as multiple files.
+            lines_per_file (int): The number of lines per file if persisting as multiple files.
+
+        """
+        if multiple_files:
+            self.data.persist_as_multi_files(path=path,
+                                             indices=list(self.indices),
+                                             columns=self.columns,
+                                             lines_per_file=lines_per_file)
+
+        else:
+            self.data.persist_as_single_file(path=path,
+                                             indices=list(self.indices),
+                                             columns=self.columns)
+
+        self.indices = np.arange(len(self.data))

@@ -28,7 +28,8 @@ base_fields = ([pa.field(name=piece, type=pa.list_(pa.int64())) for piece in lis
                   pa.field(name="half_moves", type=pa.int64()),
                   pa.field(name="total_moves", type=pa.int64())])
 
-PROCESSING_BATCH_SIZE = 1000
+PROCESSING_BATCH_SIZE = 1024
+PERSIST_BATCH_SIZE = 1024 * 1024
 
 
 def and_filters(filters: list) -> pc.Expression:
@@ -341,3 +342,88 @@ class ParquetChessDB:
         outputs = {col: [indexes[i][j] for i in range(len(indexes))] for j, col in enumerate(columns)}
 
         return outputs
+
+    def persist_as_single_file(self, path: str, indices: Union[int, list[int]] = None,
+                               columns: list[str] = None) -> None:
+        """Persist the parquet database as a single file.
+
+        Args:
+            path (str): path to save the single file.
+            indices (Union[int, list[int]]): indices to persist. Default to all indices.
+            columns (list[str]): columns to persist.
+
+        """
+        # create directory tree
+        if not os.path.exists(os.path.dirname(path)):
+            os.makedirs(os.path.dirname(path))
+
+        if not indices:
+            indices = list(range(len(self)))
+
+        schema = pa.schema(fields=[pa.field(name=col,
+                                            type=pa.infer_type(values=self.take(indices=indices,
+                                                                                columns=[col])[col]))
+                                   for col in columns])
+
+        writer = pq.ParquetWriter(where=path,
+                                  schema=schema)
+
+        # iterate over the dataset and write to the single file
+        for i in tqdm(iterable=range(len(indices) // PERSIST_BATCH_SIZE + 1),
+                      desc="Persisting as single file..."):
+            data = self.take(indices=indices[i * PERSIST_BATCH_SIZE:(i + 1) * PERSIST_BATCH_SIZE],
+                             columns=columns)
+            writer.write_table(table=pa.Table.from_pandas(pd.DataFrame(data)))
+
+        writer.close()
+
+        self.path = path
+        self.dataset = ds.dataset(source=path,
+                                  format="parquet")
+
+    def persist_as_multi_files(self,
+                               path: str,
+                               lines_per_file: int = 100000,
+                               indices: Union[int, list[int]] = None,
+                               columns: list[str] = None) -> None:
+        """Persist the parquet database as multiple files.
+
+        Args:
+            path (str): path to save the multiple files.
+            lines_per_file (int): number of lines per file.
+            indices (Union[int, list[int]]): indices to persist. Default to all indices.
+            columns (list[str]): columns to persist.
+
+        """
+        # create directory tree
+        if not os.path.exists(os.path.dirname(path)):
+            os.makedirs(os.path.dirname(path))
+
+        if not indices:
+            indices = list(range(len(self)))
+
+        schema = pa.schema(fields=[pa.field(name=col,
+                                            type=pa.infer_type(values=self.take(indices=indices,
+                                                                                columns=[col])[col]))
+                                   for col in columns]
+                                  + [pa.field(name="file_id", type=pa.string())])
+
+        # iterate over the dataset and write to the single file
+        for i in tqdm(iterable=range(len(indices) // lines_per_file + 1),
+                      desc="Persisting as multiple files..."):
+            data = self.take(indices=indices[i * lines_per_file:(i + 1) * lines_per_file],
+                             columns=columns)
+            data = pd.DataFrame(data)
+            data["file_id"] = f"part_{i}"
+
+            pq.write_to_dataset(table=pa.Table.from_pandas(df=data,
+                                                           preserve_index=False),
+                                schema=schema,
+                                root_path=path,
+                                partition_cols=["file_id"],
+                                basename_template="part_{{i}}.parquet")
+
+        self.path = path
+        self.dataset = ds.dataset(source=path,
+                                  format="parquet",
+                                  partitioning="hive")
