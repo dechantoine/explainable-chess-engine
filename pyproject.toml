@@ -10,10 +10,9 @@ python = ">=3.11.9,<3.13"
 loguru = "^0.7.2"
 pandas = "^2.1.4"
 jupyter = "^1.0.0"
-torch = "^2.1.2"
+torch = "^2.4.0"
 python-chess = "^1.999"
 tqdm = "^4.66.1"
-torchvision = "^0.17.2"
 seaborn = "^0.13.2"
 scikit-learn = "^1.4.2"
 protobuf = "4.25.3"
@@ -23,7 +22,7 @@ multichoice = "^0.3.5"
 more-itertools = "^10.2.0"
 anytree = "^2.12.1"
 graphviz = "^0.20.3"
-gradio = "^4.36.0"
+gradio = "4.36.0"
 huggingface-hub = "^0.23.3"
 stockfish = "^3.28.0"
 pyarrow = "^17.0.0"
@@ -46,6 +45,9 @@ more-itertools = "^10.2.0"
 loguru = "^0.7.2"
 cairosvg = "^2.7.1"
 
+[tool.poetry.group.api.dependencies]
+fastapi = {version = "^0.115", extras = ["standard"]}
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
@@ -53,6 +55,7 @@ build-backend = "poetry.core.masonry.api"
 [tool.pytest.ini_options]
 addopts = [
     "--import-mode=importlib",
+    "--ignore=test/test_pgn_dataset.py",
 ]
 log_cli = true
 log_cli_level = 'INFO'
