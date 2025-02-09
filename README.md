@@ -171,6 +171,12 @@ poetry run python -m demos.app
 
 ## Deployment
 
+### Run api locally (dev mode)
+
+```sh
+poetry run fastapi dev api/dl_agents.py
+```
+
 ### Deploy on HuggingFace Spaces
 
 ```sh
