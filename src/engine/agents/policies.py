@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from anytree import AnyNode, LevelOrderGroupIter
 
-from src.data.data_utils import batch_boards_to_tensor
+from ...data.data_utils import batch_boards_to_tensor
 
 
 class Strategy(Enum):
@@ -253,7 +253,7 @@ def beam_search(
                    board=board.copy(),
                    score=None,
                    move=None,
-                   #terminal=None
+                   # terminal=None
                    )
 
     is_white = board.turn
@@ -292,9 +292,9 @@ def beam_search(
                 name=f"Depth {d} Candidate {n['candidate_id']}",
                 parent=best_nodes[n["parent_id"]],
                 board=n["board"],
-                score=n["score"],
+                score=float(n["score"]),
                 move=n["move"],
-                #outcome=n["board"].outcome()
+                # outcome=n["board"].outcome()
             )
 
         is_white = not is_white

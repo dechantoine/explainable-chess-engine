@@ -6,8 +6,8 @@ import torch
 from anytree import AnyNode, LevelOrderGroupIter, LevelOrderIter, PreOrderIter
 from loguru import logger
 
-from src.engine.agents.base_agent import BaseAgent
-from src.engine.agents.policies import beam_search, eval_board
+from ...engine.agents.base_agent import BaseAgent
+from ...engine.agents.policies import beam_search, eval_board
 
 
 def choose_move_from_beam(beam: AnyNode,
