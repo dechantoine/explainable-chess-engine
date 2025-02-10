@@ -1,4 +1,5 @@
 import os
+import shutil
 from typing import Union
 
 import chess.pgn
@@ -398,6 +399,8 @@ class ParquetChessDB:
         # create directory tree
         if not os.path.exists(os.path.dirname(path)):
             os.makedirs(os.path.dirname(path))
+        else:
+            shutil.rmtree(path)
 
         if not indices:
             indices = list(range(len(self)))
