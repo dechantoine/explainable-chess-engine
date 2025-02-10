@@ -29,6 +29,21 @@ def eval_board(model: torch.nn.Module, board: chess.Board) -> float:
     return float(model(tensors).detach().numpy().flatten()[0])
 
 
+def eval_boards(model: torch.nn.Module, boards: list[chess.Board]) -> list[float]:
+    """Evaluate a single board.
+
+    Args:
+        model (torch.nn.Module): model to evaluate the board.
+        boards (list): list of chess.Board objects
+
+    Returns:
+        list: list of scores of the boards
+
+    """
+    tensors = batch_boards_to_tensor(boards)
+    return model(tensors).detach().numpy().flatten().astype(float).tolist()
+
+
 def get_legal_moves(boards: list[chess.Board]) -> list[list[chess.Move]]:
     """Get legal moves for a batch of boards.
 
