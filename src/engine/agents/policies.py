@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from anytree import AnyNode, LevelOrderGroupIter
 
-from src.data.data_utils import batch_boards_to_tensor
+from ...data.data_utils import batch_boards_to_tensor
 
 
 class Strategy(Enum):
@@ -27,6 +27,21 @@ def eval_board(model: torch.nn.Module, board: chess.Board) -> float:
     """
     tensors = batch_boards_to_tensor([board])
     return float(model(tensors).detach().numpy().flatten()[0])
+
+
+def eval_boards(model: torch.nn.Module, boards: list[chess.Board]) -> list[float]:
+    """Evaluate a single board.
+
+    Args:
+        model (torch.nn.Module): model to evaluate the board.
+        boards (list): list of chess.Board objects
+
+    Returns:
+        list: list of scores of the boards
+
+    """
+    tensors = batch_boards_to_tensor(boards)
+    return model(tensors).detach().numpy().flatten().astype(float).tolist()
 
 
 def get_legal_moves(boards: list[chess.Board]) -> list[list[chess.Move]]:
@@ -253,7 +268,7 @@ def beam_search(
                    board=board.copy(),
                    score=None,
                    move=None,
-                   #terminal=None
+                   # terminal=None
                    )
 
     is_white = board.turn
@@ -292,9 +307,9 @@ def beam_search(
                 name=f"Depth {d} Candidate {n['candidate_id']}",
                 parent=best_nodes[n["parent_id"]],
                 board=n["board"],
-                score=n["score"],
+                score=float(n["score"]),
                 move=n["move"],
-                #outcome=n["board"].outcome()
+                # outcome=n["board"].outcome()
             )
 
         is_white = not is_white
