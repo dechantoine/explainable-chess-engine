@@ -9,6 +9,7 @@ from src.engine.agents.policies import (
     beam_sampling,
     beam_search,
     eval_board,
+    eval_boards,
     get_legal_moves,
     one_depth_eval,
     push_legal_moves,
@@ -30,6 +31,13 @@ class PoliciesTestCase(unittest.TestCase):
         score = eval_board(model=self.model, board=self.board)
 
         self.assertIsInstance(score, float)
+
+    def test_eval_boards(self):
+        scores = eval_boards(model=self.model, boards=[self.board, self.board.copy()])
+
+        self.assertIsInstance(scores, list)
+        self.assertEqual(len(scores), 2)
+        self.assertIsInstance(scores[0], float)
 
     def test_get_legal_moves(self):
         legal_moves = get_legal_moves(boards=[self.board, self.board.copy()])
@@ -141,6 +149,6 @@ class PoliciesTestCase(unittest.TestCase):
         for depth in list(LevelOrderGroupIter(beam))[1:]:
             self.assertEqual(len(depth), self.beam_width)
 
-        self.assertIsInstance(beam.children[0].score, np.float32)
+        self.assertIsInstance(beam.children[0].score, float)
         self.assertIsInstance(beam.children[0].board, chess.Board)
         self.assertIsInstance(beam.children[0].move, chess.Move)
