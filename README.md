@@ -90,7 +90,7 @@ This project will be a great way to learn about chess engines, deep learning, an
   - [x] Beam Search visualization
   - [ ] Board evaluation visualization
 - [ ] Deployment
-  - [ ] Dockerize the project
+  - [x] Dockerize the project
   - [ ] Deploy on Lichess
   - [x] Deploy on HuggingFace
 
@@ -181,6 +181,18 @@ poetry run fastapi dev api/dl_agents.py
 
 ```sh
 poetry run python -m scripts.deploy_space
+```
+
+### Build Docker image
+
+```sh
+docker build . -t <username>/<image_name>:<tag>
+```
+
+### Run Docker image
+
+```sh
+docker run -p 127.0.0.0:8000:8000 <username>/<image_name>:<tag>
 ```
 
 <!-- CONTACT -->
