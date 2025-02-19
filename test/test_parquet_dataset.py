@@ -6,6 +6,7 @@ import chess.pgn
 import numpy as np
 import torch
 
+from src.data.base_dataset import BoardItem
 from src.data.parquet_dataset import ParquetChessDataset
 from src.data.parquet_db import ParquetChessDB
 
@@ -17,7 +18,7 @@ def lambda_func_board(boards: list[chess.Board]) -> list[float]:
     return [i for i in range(len(boards))]
 
 
-class TestParquetChessDB(unittest.TestCase):
+class ParquetDatasetTestCase(unittest.TestCase):
     def setUp(self):
         self.db = ParquetChessDB(test_db_dir)
         self.db.add_directory(directory=test_data_dir,
@@ -31,10 +32,10 @@ class TestParquetChessDB(unittest.TestCase):
 
     def test_init(self):
         self.assertIsInstance(self.dataset, ParquetChessDataset)
-        np.testing.assert_array_equal(self.dataset.indices, np.arange(1620))
+        np.testing.assert_array_equal(self.dataset.indices, np.arange(1555))
 
     def test_len(self):
-        self.assertEqual(len(self.dataset), 1620)
+        self.assertEqual(len(self.dataset), 1555)
 
         self.dataset.indices = np.arange(100)
         self.assertEqual(len(self.dataset), 100)
@@ -48,28 +49,22 @@ class TestParquetChessDB(unittest.TestCase):
 
     def test_getitem(self):
         idx = 0
-        boards, color, castling, stockfish_eval = self.dataset.__getitem__(idx).values()
+        board_item = self.dataset.__getitem__(idx)
 
-        self.assertIsInstance(boards, torch.Tensor)
-        self.assertIsInstance(color, torch.Tensor)
-        self.assertIsInstance(castling, torch.Tensor)
-        self.assertIsInstance(stockfish_eval, torch.Tensor)
-        self.assertEqual(boards.shape, torch.Size([12, 8, 8]))
-        self.assertEqual(color.shape, torch.Size([1]))
-        self.assertEqual(castling.shape, torch.Size([4]))
-        self.assertEqual(stockfish_eval.shape, torch.Size([]))
+        self.assertIsInstance(board_item, BoardItem)
+        self.assertEqual(board_item.board.shape, torch.Size([12, 8, 8]))
+        self.assertEqual(board_item.active_color.shape, torch.Size([1]))
+        self.assertEqual(board_item.castling.shape, torch.Size([4]))
+        self.assertEqual(board_item.stockfish_eval.shape, torch.Size([]))
 
         idx = torch.tensor(0)
-        boards, color, castling, stockfish_eval = self.dataset.__getitem__(idx).values()
+        board_item = self.dataset.__getitem__(idx)
 
-        self.assertIsInstance(boards, torch.Tensor)
-        self.assertIsInstance(color, torch.Tensor)
-        self.assertIsInstance(castling, torch.Tensor)
-        self.assertIsInstance(stockfish_eval, torch.Tensor)
-        self.assertEqual(boards.shape, torch.Size([12, 8, 8]))
-        self.assertEqual(color.shape, torch.Size([1]))
-        self.assertEqual(castling.shape, torch.Size([4]))
-        self.assertEqual(stockfish_eval.shape, torch.Size([]))
+        self.assertIsInstance(board_item, BoardItem)
+        self.assertEqual(board_item.board.shape, torch.Size([12, 8, 8]))
+        self.assertEqual(board_item.active_color.shape, torch.Size([1]))
+        self.assertEqual(board_item.castling.shape, torch.Size([4]))
+        self.assertEqual(board_item.stockfish_eval.shape, torch.Size([]))
 
         self.dataset.indices = np.arange(100)
         idx = 100
@@ -78,14 +73,11 @@ class TestParquetChessDB(unittest.TestCase):
 
     def test_getitems(self):
         indices = [0, 1, 2]
-        boards, colors, castlings, stockfish_evals = self.dataset.__getitems__(indices).values()
+        board_items = self.dataset.__getitems__(indices)
 
-        self.assertIsInstance(boards, torch.Tensor)
-        self.assertIsInstance(colors, torch.Tensor)
-        self.assertIsInstance(castlings, torch.Tensor)
-        self.assertIsInstance(stockfish_evals, torch.Tensor)
+        self.assertIsInstance(board_items, BoardItem)
 
-        self.assertEqual(boards.shape, torch.Size([3, 12, 8, 8]))
-        self.assertEqual(colors.shape, torch.Size([3, 1]))
-        self.assertEqual(castlings.shape, torch.Size([3, 4]))
-        self.assertEqual(stockfish_evals.shape, torch.Size([3]))
+        self.assertEqual(board_items.board.shape, torch.Size([3, 12, 8, 8]))
+        self.assertEqual(board_items.active_color.shape, torch.Size([3, 1]))
+        self.assertEqual(board_items.castling.shape, torch.Size([3, 4]))
+        self.assertEqual(board_items.stockfish_eval.shape, torch.Size([3]))

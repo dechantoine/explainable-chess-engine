@@ -34,13 +34,13 @@ class ParquetChessDBTestCase(unittest.TestCase):
                                 "castling": [0, 0, 0, 0],
                                 "en_passant": -1,
                                 "half_moves": 2,
-                                "total_moves": 25}
+                                "move_id": 25}
 
         self.db = ParquetChessDB(test_db_dir)
 
-        self.len_moves_najdorf = 266
-        self.len_moves_tal = 507
-        self.len_moves_morphy = 847
+        self.len_moves_najdorf = 262
+        self.len_moves_tal = 501
+        self.len_moves_morphy = 792
 
     def tearDown(self):
         if os.path.exists(test_db_dir):
@@ -65,7 +65,7 @@ class ParquetChessDBTestCase(unittest.TestCase):
         values = self.db.read_boards(filters=[pc.field("file_id") == "Najdorf.pgn"],
                                      columns=["index"])
 
-        self.assertEqual(values["index"], list(range(266)))
+        self.assertEqual(values["index"], list(range(self.len_moves_najdorf)))
 
     def test_add_directory(self):
         self.db.add_directory(directory=test_data_dir)
@@ -92,13 +92,13 @@ class ParquetChessDBTestCase(unittest.TestCase):
     def test_len(self):
         self.db.add_directory(directory=test_data_dir)
 
-        self.assertEqual(len(self.db), 1620)
+        self.assertEqual(len(self.db), self.len_moves_morphy + self.len_moves_najdorf + self.len_moves_tal)
 
     def test_get_columns(self):
         self.db.add_directory(directory=test_data_dir)
         columns = self.db.get_columns()
 
-        self.assertCountEqual(columns, base_columns + ["winner", "game_id", "file_id"])
+        self.assertCountEqual(columns, base_columns + ["total_moves", "winner", "game_id", "file_id"])
 
     def test_list_files(self):
         self.db.add_directory(directory=test_data_dir)
@@ -112,14 +112,14 @@ class ParquetChessDBTestCase(unittest.TestCase):
         self.db.add_directory(directory=test_data_dir)
         board = self.db.read_board(file_id="Morphy.pgn",
                                    game_number=0,
-                                   full_move_number=25,
+                                   move_id=25,
                                    active_color=0)
 
         self.assertEqual(board, self.dict_index_read)
 
         board = self.db.read_board(file_id="Morphy.pgn",
                                    game_number=0,
-                                   full_move_number=8,
+                                   move_id=8,
                                    active_color=0,
                                    columns=["winner"])
         self.assertEqual(board["winner"], 1)
@@ -129,7 +129,7 @@ class ParquetChessDBTestCase(unittest.TestCase):
         boards = self.db.read_boards(filters=[pc.field("active_color") == 0],
                                      columns=["winner"])
 
-        self.assertEqual(len(boards["winner"]), 806)
+        self.assertEqual(len(boards["winner"]), 787)
         assert all([w in [-1, 0, 1] for w in boards["winner"]])
 
         boards = self.db.read_boards(filters=[pc.field("active_color") == 0,
@@ -141,12 +141,12 @@ class ParquetChessDBTestCase(unittest.TestCase):
 
     def test_take(self):
         self.db.add_directory(directory=test_data_dir)
-        indexes = self.db.take(indices=[0, 345, 695, 1156, 1619])
+        indexes = self.db.take(indices=[0, 345, 695, 1156, 1554])
 
-        self.assertEqual(len(indexes), 20)
+        self.assertEqual(len(indexes), 21)
         assert all([len(i) == 5 for i in indexes.values()])
 
-        indexes = self.db.take(indices=[0, 345, 695, 1156, 1619],
+        indexes = self.db.take(indices=[0, 345, 695, 1156, 1554],
                                columns=["winner"])
 
         self.assertEqual(len(indexes), 1)
@@ -156,4 +156,5 @@ class ParquetChessDBTestCase(unittest.TestCase):
                                columns=["winner"])
 
         self.assertEqual(len(indexes), 1)
-        assert all([len(i) == 1620 for i in indexes.values()])
+        assert all([len(i) == (self.len_moves_morphy + self.len_moves_najdorf + self.len_moves_tal)
+                    for i in indexes.values()])

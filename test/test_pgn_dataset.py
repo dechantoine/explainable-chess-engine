@@ -1,9 +1,8 @@
 import unittest
 
-import numpy as np
-from chess import Board
 from torch import Tensor
 
+from src.data.base_dataset import BoardItem
 from src.data.pgn_dataset import PGNDataset
 
 test_data_dir = "test/test_data"
@@ -13,51 +12,46 @@ class PGNDatasetTestCase(unittest.TestCase):
     def setUp(self):
         self.dataset = PGNDataset(
             root_dir=test_data_dir,
-            return_moves=False,
-            return_outcome=False,
-            transform=False,
             include_draws=True,
             in_memory=False,
+            winner=False,
+            move_count=False,
         )
 
         self.dataset_in_memory = PGNDataset(
             root_dir=test_data_dir,
-            return_moves=False,
-            return_outcome=False,
-            transform=False,
             include_draws=True,
             in_memory=True,
             num_workers=8,
+            winner=False,
+            move_count=False,
         )
 
         self.dataset_in_memory_return_moves = PGNDataset(
             root_dir=test_data_dir,
-            return_moves=True,
-            return_outcome=False,
-            transform=False,
             include_draws=True,
             in_memory=True,
             num_workers=8,
+            winner=False,
+            move_count=True,
         )
 
         self.dataset_in_memory_return_outcome = PGNDataset(
             root_dir=test_data_dir,
-            return_moves=False,
-            return_outcome=True,
-            transform=False,
             include_draws=True,
             in_memory=True,
             num_workers=8,
+            winner=True,
+            move_count=False,
         )
 
         self.dataset_in_memory_return_both = PGNDataset(
             root_dir=test_data_dir,
-            return_moves=True,
-            return_outcome=True,
-            transform=False,
             include_draws=True,
             in_memory=True,
             num_workers=8,
+            winner=True,
+            move_count=True,
         )
 
         self.len_moves_najdorf = [73, 58, 44, 87]
@@ -112,31 +106,41 @@ class PGNDatasetTestCase(unittest.TestCase):
 
     def test_init(self):
         self.assertRaises(AttributeError, lambda: self.dataset.board_samples)
-        self.assertRaises(AttributeError, lambda: self.dataset.legal_moves_samples)
-        self.assertRaises(AttributeError, lambda: self.dataset.outcomes)
+        self.assertRaises(AttributeError, lambda: self.dataset.moves_ids)
+        self.assertRaises(AttributeError, lambda: self.dataset.total_moves)
+        self.assertRaises(AttributeError, lambda: self.dataset.winners)
 
-        assert self.dataset_in_memory.board_samples is not None
+        self.assertIsNotNone(self.dataset_in_memory.board_samples)
         self.assertRaises(
-            AttributeError, lambda: self.dataset_in_memory.legal_moves_samples
+            AttributeError, lambda: self.dataset_in_memory.moves_ids
         )
-        self.assertRaises(AttributeError, lambda: self.dataset_in_memory.outcomes)
-
-        assert self.dataset_in_memory_return_moves.board_samples is not None
-        assert self.dataset_in_memory_return_moves.legal_moves_samples is not None
         self.assertRaises(
-            AttributeError, lambda: self.dataset_in_memory_return_moves.outcomes
+            AttributeError, lambda: self.dataset_in_memory.total_moves
+        )
+        self.assertRaises(AttributeError, lambda: self.dataset_in_memory.winners)
+
+        self.assertIsNotNone(self.dataset_in_memory_return_moves.board_samples)
+        self.assertIsNotNone(self.dataset_in_memory_return_moves.moves_ids)
+        self.assertIsNotNone(self.dataset_in_memory_return_moves.total_moves)
+        self.assertRaises(
+            AttributeError, lambda: self.dataset_in_memory_return_moves.winners
         )
 
-        assert self.dataset_in_memory_return_outcome.board_samples is not None
+        self.assertIsNotNone(self.dataset_in_memory_return_outcome.board_samples)
         self.assertRaises(
             AttributeError,
-            lambda: self.dataset_in_memory_return_outcome.legal_moves_samples,
+            lambda: self.dataset_in_memory_return_outcome.moves_ids,
         )
-        assert self.dataset_in_memory_return_outcome.outcomes is not None
+        self.assertRaises(
+            AttributeError,
+            lambda: self.dataset_in_memory_return_outcome.total_moves,
+        )
+        self.assertIsNotNone(self.dataset_in_memory_return_outcome.winners)
 
-        assert self.dataset_in_memory_return_both.board_samples is not None
-        assert self.dataset_in_memory_return_both.legal_moves_samples is not None
-        assert self.dataset_in_memory_return_both.outcomes is not None
+        self.assertIsNotNone(self.dataset_in_memory_return_moves.board_samples)
+        self.assertIsNotNone(self.dataset_in_memory_return_moves.moves_ids)
+        self.assertIsNotNone(self.dataset_in_memory_return_moves.total_moves)
+        self.assertIsNotNone(self.dataset_in_memory_return_outcome.winners)
 
     def test_get_boards_indices(self):
         for d in [
@@ -146,70 +150,44 @@ class PGNDatasetTestCase(unittest.TestCase):
             self.dataset_in_memory_return_outcome,
             self.dataset_in_memory_return_both,
         ]:
-            indices, results = d.get_boards_indices(include_draws=True)
-            assert isinstance(indices, list)
-            assert all(isinstance(x, tuple) for x in indices)
-            assert all(len(x) == 3 for x in indices)
-            assert all(isinstance(x[i], int) for x in indices for i in range(3))
+            indices = d.get_boards_indices(include_draws=True)
+            self.assertIsInstance(indices, list)
+            self.assertTrue(all(isinstance(x, tuple) for x in indices))
+            self.assertTrue(all(len(x) == 3 for x in indices))
+            self.assertTrue(all(isinstance(x[i], int) for x in indices for i in range(3)))
 
-            assert len([x for x in indices if x[0] == 0]) == sum(self.len_moves_najdorf)
-            assert len([x for x in indices if x[0] == 1]) == sum(self.len_moves_tal)
-            assert len([x for x in indices if x[0] == 2]) == sum(self.len_moves_morphy)
+            self.assertTrue(len([x for x in indices if x[0] == 0]) == sum(self.len_moves_morphy))
+            self.assertTrue(len([x for x in indices if x[0] == 1]) == sum(self.len_moves_najdorf))
+            self.assertTrue(len([x for x in indices if x[0] == 2]) == sum(self.len_moves_tal))
 
-            assert all(
+            self.assertTrue(all(
                 len([x for x in indices if x[0] == 0 and x[1] == i])
-                == self.len_moves_najdorf[i]
-                for i in range(len(self.len_moves_najdorf))
-            )
-            assert all(
-                len([x for x in indices if x[0] == 1 and x[1] == i])
-                == self.len_moves_tal[i]
-                for i in range(len(self.len_moves_tal))
-            )
-            assert all(
-                len([x for x in indices if x[0] == 2 and x[1] == i])
                 == self.len_moves_morphy[i]
                 for i in range(len(self.len_moves_morphy))
-            )
-
-            assert isinstance(results, list)
-            assert all(isinstance(x, np.int8) for x in results)
-            assert len(results) == len(indices)
-            assert all(
-                results[sum(self.len_moves_najdorf[:i]) + k] == self.results_najdorf[i]
+            ))
+            self.assertTrue(all(
+                len([x for x in indices if x[0] == 1 and x[1] == i])
+                == self.len_moves_najdorf[i]
                 for i in range(len(self.len_moves_najdorf))
-                for k in range(self.len_moves_najdorf[i])
-            )
-            assert all(
-                results[sum(self.len_moves_najdorf) + sum(self.len_moves_tal[:i]) + k]
-                == self.results_tal[i]
+            ))
+            self.assertTrue(all(
+                len([x for x in indices if x[0] == 2 and x[1] == i])
+                == self.len_moves_tal[i]
                 for i in range(len(self.len_moves_tal))
-                for k in range(self.len_moves_tal[i])
-            )
-            assert all(
-                results[
-                    sum(self.len_moves_najdorf)
-                    + sum(self.len_moves_tal)
-                    + sum(self.len_moves_morphy[:i])
-                    + k
-                ]
-                == self.results_morphy[i]
-                for i in range(len(self.len_moves_morphy))
-                for k in range(self.len_moves_morphy[i])
-            )
+            ))
 
-            indices_no_draws, results_no_draws = d.get_boards_indices(
+            indices_no_draws = d.get_boards_indices(
                 include_draws=False
             )
-            assert len([x for x in indices_no_draws if x[0] == 0]) == sum(
-                self.len_moves_najdorf_no_draws
-            )
-            assert len([x for x in indices_no_draws if x[0] == 1]) == sum(
-                self.len_moves_tal_no_draws
-            )
-            assert len([x for x in indices_no_draws if x[0] == 2]) == sum(
+            self.assertTrue(len([x for x in indices_no_draws if x[0] == 0]) == sum(
                 self.len_moves_morphy_no_draws
-            )
+            ))
+            self.assertTrue(len([x for x in indices_no_draws if x[0] == 1]) == sum(
+                self.len_moves_najdorf_no_draws
+            ))
+            self.assertTrue(len([x for x in indices_no_draws if x[0] == 2]) == sum(
+                self.len_moves_tal_no_draws
+            ))
 
     def test_retrieve_board(self):
         for d in [
@@ -220,113 +198,178 @@ class PGNDatasetTestCase(unittest.TestCase):
             self.dataset_in_memory_return_both,
         ]:
             board, move_id, total_moves, result = d.retrieve_board(2)
-            assert isinstance(move_id, int)
-            assert isinstance(total_moves, int)
-            assert isinstance(result, str)
+            self.assertIsInstance(move_id, int)
+            self.assertIsInstance(total_moves, int)
+            self.assertIsInstance(result, int)
 
     def test_getitem(self):
-        board = self.dataset[0]
-        assert isinstance(board, Board)
+        board_item = self.dataset[0]
+        self.assertIsInstance(board_item, BoardItem)
+        self.assertIsInstance(board_item.board, Tensor)
+        self.assertIsInstance(board_item.active_color, Tensor)
+        self.assertIsInstance(board_item.castling, Tensor)
 
-        board = self.dataset[Tensor([0])]
-        assert isinstance(board, Board)
+        board_item = self.dataset[Tensor([0])]
+        self.assertIsInstance(board_item, BoardItem)
+        self.assertIsInstance(board_item.board, Tensor)
+        self.assertIsInstance(board_item.active_color, Tensor)
+        self.assertIsInstance(board_item.castling, Tensor)
 
-        self.dataset.return_moves = True
-        board, moves = self.dataset[0]
-        assert isinstance(board, Board)
-        assert isinstance(moves, list)
+        self.dataset.move_count = True
+        board_item = self.dataset[0]
+        self.assertIsInstance(board_item, BoardItem)
+        self.assertIsInstance(board_item.board, Tensor)
+        self.assertIsInstance(board_item.active_color, Tensor)
+        self.assertIsInstance(board_item.castling, Tensor)
+        self.assertIsInstance(board_item.move_id, Tensor)
+        self.assertIsInstance(board_item.total_moves, Tensor)
 
-        self.dataset.return_outcome = True
-        board, moves, outcome = self.dataset[0]
-        assert isinstance(board, Board)
-        assert isinstance(moves, list)
-        assert isinstance(outcome, dict)
-        assert len(outcome) == 3
+        self.dataset.winner = True
+        board_item = self.dataset[0]
+        self.assertIsInstance(board_item, BoardItem)
+        self.assertIsInstance(board_item.board, Tensor)
+        self.assertIsInstance(board_item.active_color, Tensor)
+        self.assertIsInstance(board_item.castling, Tensor)
+        self.assertIsInstance(board_item.move_id, Tensor)
+        self.assertIsInstance(board_item.total_moves, Tensor)
+        self.assertIsInstance(board_item.winner, Tensor)
 
-        self.dataset.transform = True
-        for d in [self.dataset, self.dataset_in_memory_return_both]:
-            d.transform = True
-            board, moves, outcome = d[0]
-            assert isinstance(board, Tensor)
-            assert isinstance(moves, Tensor)
-            assert isinstance(outcome, Tensor)
+        self.assertEqual(board_item.board.shape, (12, 8, 8))
+        self.assertEqual(board_item.active_color.shape, (1,))
+        self.assertEqual(board_item.castling.shape, (4,))
+        self.assertEqual(board_item.move_id.shape, (1,))
+        self.assertEqual(board_item.total_moves.shape, (1,))
+        self.assertEqual(board_item.winner.shape, (1,))
 
-            assert board.shape == (12, 8, 8)
-            assert moves.shape == (64, 64)
-            assert outcome.shape == (3,)
+        board_item = self.dataset_in_memory_return_both[0]
+        self.assertIsInstance(board_item, BoardItem)
+        self.assertIsInstance(board_item.board, Tensor)
+        self.assertIsInstance(board_item.active_color, Tensor)
+        self.assertIsInstance(board_item.castling, Tensor)
+        self.assertIsInstance(board_item.move_id, Tensor)
+        self.assertIsInstance(board_item.total_moves, Tensor)
+        self.assertIsInstance(board_item.winner, Tensor)
 
-        board = self.dataset_in_memory[Tensor([0])]
-        assert isinstance(board, Tensor)
-        assert board.shape == (12, 8, 8)
+        self.assertEqual(board_item.board.shape, (12, 8, 8))
+        self.assertEqual(board_item.active_color.shape, (1,))
+        self.assertEqual(board_item.castling.shape, (4,))
+        self.assertEqual(board_item.move_id.shape, (1,))
+        self.assertEqual(board_item.total_moves.shape, (1,))
+        self.assertEqual(board_item.winner.shape, (1,))
 
-        board, moves = self.dataset_in_memory_return_moves[Tensor([0])]
-        assert isinstance(board, Tensor)
-        assert isinstance(moves, Tensor)
-        assert board.shape == (12, 8, 8)
-        assert moves.shape == (64, 64)
+        board_item = self.dataset_in_memory_return_moves[0]
+        self.assertIsInstance(board_item, BoardItem)
+        self.assertIsInstance(board_item.board, Tensor)
+        self.assertIsInstance(board_item.active_color, Tensor)
+        self.assertIsInstance(board_item.castling, Tensor)
+        self.assertIsInstance(board_item.move_id, Tensor)
+        self.assertIsInstance(board_item.total_moves, Tensor)
 
-        board, outcome = self.dataset_in_memory_return_outcome[Tensor([0])]
-        assert isinstance(board, Tensor)
-        assert isinstance(outcome, Tensor)
-        assert board.shape == (12, 8, 8)
-        assert outcome.shape == (3,)
+        self.assertEqual(board_item.board.shape, (12, 8, 8))
+        self.assertEqual(board_item.active_color.shape, (1,))
+        self.assertEqual(board_item.castling.shape, (4,))
+        self.assertEqual(board_item.move_id.shape, (1,))
+        self.assertEqual(board_item.total_moves.shape, (1,))
 
-    def test_get_items(self):
-        boards = self.dataset.__getitems__([0, 1, 2])
-        assert isinstance(boards, list)
-        assert all(isinstance(b, Board) for b in boards)
+        board_item = self.dataset_in_memory_return_outcome[0]
+        self.assertIsInstance(board_item, BoardItem)
+        self.assertIsInstance(board_item.board, Tensor)
+        self.assertIsInstance(board_item.active_color, Tensor)
+        self.assertIsInstance(board_item.castling, Tensor)
+        self.assertIsInstance(board_item.winner, Tensor)
 
-        boards = self.dataset.__getitems__(Tensor([0, 1, 2]))
-        assert isinstance(boards, list)
-        assert all(isinstance(b, Board) for b in boards)
+        self.assertEqual(board_item.board.shape, (12, 8, 8))
+        self.assertEqual(board_item.active_color.shape, (1,))
+        self.assertEqual(board_item.castling.shape, (4,))
+        self.assertEqual(board_item.winner.shape, (1,))
 
-        self.dataset.return_moves = True
-        boards, moves = self.dataset.__getitems__([0, 1, 2])
-        assert isinstance(boards, list)
-        assert all(isinstance(b, Board) for b in boards)
-        assert isinstance(moves, list)
-        assert all(isinstance(m, list) for m in moves)
+    def test_getitems(self):
+        boards_item = self.dataset.__getitems__([0, 1, 2])
+        self.assertIsInstance(boards_item, BoardItem)
+        self.assertIsInstance(boards_item.board, Tensor)
+        self.assertIsInstance(boards_item.active_color, Tensor)
+        self.assertIsInstance(boards_item.castling, Tensor)
 
-        self.dataset.return_outcome = True
-        boards, moves, outcomes = self.dataset.__getitems__([0, 1, 2])
-        assert isinstance(boards, list)
-        assert all(isinstance(b, Board) for b in boards)
-        assert isinstance(moves, list)
-        assert all(isinstance(m, list) for m in moves)
-        assert isinstance(outcomes, list)
-        assert all(isinstance(o, dict) for o in outcomes)
+        boards_item = self.dataset.__getitems__(Tensor([0, 1, 2]))
+        self.assertIsInstance(boards_item, BoardItem)
+        self.assertIsInstance(boards_item.board, Tensor)
+        self.assertIsInstance(boards_item.active_color, Tensor)
+        self.assertIsInstance(boards_item.castling, Tensor)
 
-        self.dataset.transform = True
-        for d in [self.dataset, self.dataset_in_memory_return_both]:
-            boards, moves, outcomes = d.__getitems__([0, 1, 2])
-            assert isinstance(boards, Tensor)
-            assert all(isinstance(b, Tensor) for b in boards)
-            assert isinstance(moves, Tensor)
-            assert all(isinstance(m, Tensor) for m in moves)
-            assert isinstance(outcomes, Tensor)
-            assert all(isinstance(o, Tensor) for o in outcomes)
+        self.dataset.move_count = True
+        boards_item = self.dataset.__getitems__([0, 1, 2])
+        self.assertIsInstance(boards_item, BoardItem)
+        self.assertIsInstance(boards_item.board, Tensor)
+        self.assertIsInstance(boards_item.active_color, Tensor)
+        self.assertIsInstance(boards_item.castling, Tensor)
+        self.assertIsInstance(boards_item.move_id, Tensor)
+        self.assertIsInstance(boards_item.total_moves, Tensor)
 
-            assert all(b.shape == (12, 8, 8) for b in boards)
-            assert all(m.shape == (64, 64) for m in moves)
-            assert all(o.shape == (3,) for o in outcomes)
+        self.dataset.winner = True
+        boards_item = self.dataset.__getitems__([0, 1, 2])
+        self.assertIsInstance(boards_item, BoardItem)
+        self.assertIsInstance(boards_item.board, Tensor)
+        self.assertIsInstance(boards_item.active_color, Tensor)
+        self.assertIsInstance(boards_item.castling, Tensor)
+        self.assertIsInstance(boards_item.move_id, Tensor)
+        self.assertIsInstance(boards_item.total_moves, Tensor)
+        self.assertIsInstance(boards_item.winner, Tensor)
 
-        boards = self.dataset_in_memory.__getitems__([0, 1, 2])
-        assert isinstance(boards, Tensor)
-        assert all(isinstance(b, Tensor) for b in boards)
-        assert all(b.shape == (12, 8, 8) for b in boards)
+        self.assertEqual(boards_item.board.shape, (3, 12, 8, 8))
+        self.assertEqual(boards_item.active_color.shape, (3, 1))
+        self.assertEqual(boards_item.castling.shape, (3, 4))
+        self.assertEqual(boards_item.move_id.shape, (3, 1))
+        self.assertEqual(boards_item.total_moves.shape, (3, 1))
+        self.assertEqual(boards_item.winner.shape, (3, 1))
 
-        boards, moves = self.dataset_in_memory_return_moves.__getitems__([0, 1, 2])
-        assert isinstance(boards, Tensor)
-        assert all(isinstance(b, Tensor) for b in boards)
-        assert all(b.shape == (12, 8, 8) for b in boards)
-        assert isinstance(moves, Tensor)
-        assert all(isinstance(m, Tensor) for m in moves)
-        assert all(m.shape == (64, 64) for m in moves)
+        boards_item = self.dataset_in_memory.__getitems__([0, 1, 2])
+        self.assertIsInstance(boards_item, BoardItem)
+        self.assertIsInstance(boards_item.board, Tensor)
+        self.assertIsInstance(boards_item.active_color, Tensor)
+        self.assertIsInstance(boards_item.castling, Tensor)
 
-        boards, outcomes = self.dataset_in_memory_return_outcome.__getitems__([0, 1, 2])
-        assert isinstance(boards, Tensor)
-        assert all(isinstance(b, Tensor) for b in boards)
-        assert all(b.shape == (12, 8, 8) for b in boards)
-        assert isinstance(outcomes, Tensor)
-        assert all(isinstance(o, Tensor) for o in outcomes)
-        assert all(o.shape == (3,) for o in outcomes)
+        self.assertEqual(boards_item.board.shape, (3, 12, 8, 8))
+        self.assertEqual(boards_item.active_color.shape, (3, 1))
+        self.assertEqual(boards_item.castling.shape, (3, 4))
+
+        boards_item = self.dataset_in_memory_return_moves.__getitems__([0, 1, 2])
+        self.assertIsInstance(boards_item, BoardItem)
+        self.assertIsInstance(boards_item.board, Tensor)
+        self.assertIsInstance(boards_item.active_color, Tensor)
+        self.assertIsInstance(boards_item.castling, Tensor)
+        self.assertIsInstance(boards_item.move_id, Tensor)
+        self.assertIsInstance(boards_item.total_moves, Tensor)
+
+        self.assertEqual(boards_item.board.shape, (3, 12, 8, 8))
+        self.assertEqual(boards_item.active_color.shape, (3, 1))
+        self.assertEqual(boards_item.castling.shape, (3, 4))
+        self.assertEqual(boards_item.move_id.shape, (3, 1))
+        self.assertEqual(boards_item.total_moves.shape, (3, 1))
+
+        boards_item = self.dataset_in_memory_return_outcome.__getitems__([0, 1, 2])
+        self.assertIsInstance(boards_item, BoardItem)
+        self.assertIsInstance(boards_item.board, Tensor)
+        self.assertIsInstance(boards_item.active_color, Tensor)
+        self.assertIsInstance(boards_item.castling, Tensor)
+        self.assertIsInstance(boards_item.winner, Tensor)
+
+        self.assertEqual(boards_item.board.shape, (3, 12, 8, 8))
+        self.assertEqual(boards_item.active_color.shape, (3, 1))
+        self.assertEqual(boards_item.castling.shape, (3, 4))
+        self.assertEqual(boards_item.winner.shape, (3, 1))
+
+        boards_item = self.dataset_in_memory_return_both.__getitems__([0, 1, 2])
+        self.assertIsInstance(boards_item, BoardItem)
+        self.assertIsInstance(boards_item.board, Tensor)
+        self.assertIsInstance(boards_item.active_color, Tensor)
+        self.assertIsInstance(boards_item.castling, Tensor)
+        self.assertIsInstance(boards_item.move_id, Tensor)
+        self.assertIsInstance(boards_item.total_moves, Tensor)
+        self.assertIsInstance(boards_item.winner, Tensor)
+
+        self.assertEqual(boards_item.board.shape, (3, 12, 8, 8))
+        self.assertEqual(boards_item.active_color.shape, (3, 1))
+        self.assertEqual(boards_item.castling.shape, (3, 4))
+        self.assertEqual(boards_item.move_id.shape, (3, 1))
+        self.assertEqual(boards_item.total_moves.shape, (3, 1))
+        self.assertEqual(boards_item.winner.shape, (3, 1))

@@ -64,8 +64,8 @@ class TestDistill(unittest.TestCase):
         )
 
         self.assertEqual(len(train_set) + len(test_set), len(self.dataset))
-        self.assertEqual(len(train_set), 1296)
-        self.assertEqual(len(test_set), 324)
+        self.assertEqual(len(train_set), 1244)
+        self.assertEqual(len(test_set), 311)
 
         self.assertCountEqual(
             np.concatenate([train_set.indices, test_set.indices]),
