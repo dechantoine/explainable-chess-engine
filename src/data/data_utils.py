@@ -307,9 +307,9 @@ def batch_boards_to_tensor(
 
     """
     tensors = [board_to_tensor(board) for board in batch_boards]
-    return (torch.Tensor(np.array([tensors[i][0] for i in range(len(tensors))])),
-            torch.Tensor(np.array([tensors[i][1] for i in range(len(tensors))])),
-            torch.Tensor(np.array([tensors[i][2] for i in range(len(tensors))])))
+    return (torch.tensor(np.array([tensors[i][0] for i in range(len(tensors))])),
+            torch.tensor(np.array([tensors[i][1] for i in range(len(tensors))])),
+            torch.tensor(np.array([tensors[i][2] for i in range(len(tensors))])))
 
 
 @logger.catch

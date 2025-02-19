@@ -11,7 +11,7 @@ import pyarrow.parquet as pq
 from loguru import logger
 from tqdm import tqdm
 
-from src.data.data_utils import arrays_to_lists, board_to_list_index, dict_pieces
+from src.data.data_utils import arrays_to_lists, board_to_list_index, dict_pieces, result_to_tensor
 
 base_columns = (list(dict_pieces["white"]) +
                 list(dict_pieces["black"]) +
@@ -19,7 +19,7 @@ base_columns = (list(dict_pieces["white"]) +
                  "castling",
                  "en_passant",
                  "half_moves",
-                 "total_moves"])
+                 "move_id"])
 
 base_fields = ([pa.field(name=piece, type=pa.list_(pa.int64())) for piece in list(dict_pieces["white"])] +
                [pa.field(name=piece, type=pa.list_(pa.int64())) for piece in list(dict_pieces["black"])]
@@ -27,7 +27,8 @@ base_fields = ([pa.field(name=piece, type=pa.list_(pa.int64())) for piece in lis
                   pa.field(name="castling", type=pa.list_(pa.int64())),
                   pa.field(name="en_passant", type=pa.int64()),
                   pa.field(name="half_moves", type=pa.int64()),
-                  pa.field(name="total_moves", type=pa.int64())])
+                  pa.field(name="move_id", type=pa.int64()),
+                  ])
 
 PROCESSING_BATCH_SIZE = 1024
 PERSIST_BATCH_SIZE = 1024 * 1024
@@ -67,10 +68,11 @@ def process_games_for_parquet(game: chess.pgn) -> tuple[pd.DataFrame, list[chess
 
     """
     boards = []
+    idx_boards = []
 
     board = game.board()
-    boards.append(board.copy())
-    idx_boards = [board_to_list_index(board)]
+    #boards.append(board.copy())
+    #idx_boards.append(board_to_list_index(board))
 
     for m in list(game.mainline_moves()):
         board.push(m)
@@ -138,7 +140,7 @@ class ParquetChessDB:
 
         boards = []
         df = pd.DataFrame(columns=base_columns
-                                  + ["winner", "game_id", "file_id"])
+                                  + ["total_moves", "winner", "game_id", "file_id"])
 
         while game:
             try:
@@ -154,7 +156,8 @@ class ParquetChessDB:
                 pq.write_to_dataset(table=pa.Table.from_pandas(df=df,
                                                                preserve_index=False),
                                     schema=pa.schema(fields=base_fields +
-                                                            [pa.field(name="winner", type=pa.int64()),
+                                                            [pa.field(name="total_moves", type=pa.int64()),
+                                                             pa.field(name="winner", type=pa.int64()),
                                                              pa.field(name="game_id", type=pa.int64()),
                                                              pa.field(name="file_id", type=pa.string())] +
                                                             [pa.field(name=col, type=pa.infer_type(values=df[col]))
@@ -165,10 +168,14 @@ class ParquetChessDB:
 
                 break
 
-            winner = 1 if game.headers["Result"] == "1-0" else 0 if game.headers["Result"] == "0-1" else -1
+            try:
+                winner = result_to_tensor(game.headers["Result"])[0]
+            except ValueError:
+                continue
 
             df_game, game_boards = process_games_for_parquet(game)
 
+            df_game["total_moves"] = max(df_game["move_id"])
             df_game["winner"] = winner
             df_game["game_id"] = game_id
             df_game["file_id"] = file_id
@@ -184,7 +191,8 @@ class ParquetChessDB:
                 pq.write_to_dataset(table=pa.Table.from_pandas(df=df,
                                                                preserve_index=False),
                                     schema=pa.schema(fields=base_fields +
-                                                            [pa.field(name="winner", type=pa.int64()),
+                                                            [pa.field(name="total_moves", type=pa.int64()),
+                                                             pa.field(name="winner", type=pa.int64()),
                                                              pa.field(name="game_id", type=pa.int64()),
                                                              pa.field(name="file_id", type=pa.string())] +
                                                             [pa.field(name=col, type=pa.infer_type(values=df[col]))
@@ -196,7 +204,7 @@ class ParquetChessDB:
                 k += 1
                 boards = []
                 df = pd.DataFrame(columns=base_columns
-                                          + ["winner", "game_id", "file_id"])
+                                          + ["total_moves", "winner", "game_id", "file_id"])
 
                 self._load()
                 return
@@ -262,14 +270,14 @@ class ParquetChessDB:
         """
         return self.dataset.schema
 
-    def read_board(self, file_id: str, game_number: int = 0, full_move_number: int = 0, active_color: int = 0,
+    def read_board(self, file_id: str, game_number: int = 0, move_id: int = 0, active_color: int = 0,
                    columns: list = None) -> dict:
         """Read a unique board from the parquet database by file id, game number, full move number, and active color.
 
         Args:
             file_id (str): file id.
             game_number (int): game number.
-            full_move_number (int): full move number.
+            move_id (int): index of the move.
             active_color (int): active color.
             columns (list): columns to read. Default to all columns.
 
@@ -283,7 +291,7 @@ class ParquetChessDB:
                                       filter=and_filters([pc.field("file_id") == file_id,
                                                           pc.field("game_id") == game_number,
                                                           pc.field("active_color") == active_color,
-                                                          pc.field("total_moves") == full_move_number])
+                                                          pc.field("move_id") == move_id])
                                       )
         indexes = arrays_to_lists(data=table.to_pandas().values[0])
 

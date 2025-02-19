@@ -5,21 +5,20 @@ import numpy as np
 import torch
 from loguru import logger
 from torch import Tensor
-from torch.utils.data import Dataset
 
+from src.data.base_dataset import BaseChessDataset, BoardItem
 from src.data.data_utils import dict_pieces, list_index_to_tensor
 from src.data.parquet_db import ParquetChessDB, base_columns
 
 
-class ParquetChessDataset(Dataset):
+class ParquetChessDataset(BaseChessDataset):
     """Dataset for the Parquet Chess DB."""
 
     def __init__(self,
                  path: str,
                  stockfish_eval: bool = True,
                  winner: bool = False,
-                 move_count: bool = False
-                 ) -> None:
+                 move_count: bool = False) -> None:
         """Initializes the ParquetChessDataset class.
 
         Args:
@@ -29,13 +28,14 @@ class ParquetChessDataset(Dataset):
             move_count (bool): Whether to include move count in outputs.
 
         """
+        super().__init__(stockfish_eval=stockfish_eval,
+                         winner=winner,
+                         move_count=move_count)
         self.data = ParquetChessDB(path)
         self.indices = np.arange(len(self.data))
-        self.set_columns(stockfish_eval=stockfish_eval, winner=winner, move_count=move_count)
+        self.set_columns()
 
-    def set_columns(self, stockfish_eval: bool = True,
-                    winner: bool = False,
-                    move_count: bool = False
+    def set_columns(self,
                     ) -> None:
         """Sets the columns to include in the dataset outputs.
 
@@ -45,22 +45,19 @@ class ParquetChessDataset(Dataset):
             move_count (bool): Whether to include move count in outputs.
 
         """
-        self.stockfish_eval = stockfish_eval
-        self.winner = winner
-        self.move_count = move_count
-
         self.columns = base_columns.copy()
         self.columns.remove("en_passant")
         self.columns.remove("half_moves")
-        self.columns.remove("total_moves")
+        self.columns.remove("move_id")
 
-        if stockfish_eval:
+        if self.stockfish_eval:
             self.columns.append("stockfish_eval")
 
-        if winner:
+        if self.winner:
             self.columns.append("winner")
 
-        if move_count:
+        if self.move_count:
+            self.columns.append("move_id")
             self.columns.append("total_moves")
 
         logger.info(f"ParquetChessDataset columns: {self.columns}")
@@ -75,7 +72,7 @@ class ParquetChessDataset(Dataset):
             (str(self.data.list_files()) + str(self.data.schema) + str(self.indices)).encode()
         ).hexdigest()
 
-    def __getitem__(self, idx: Union[Tensor, int]) -> dict[str, Tensor]:
+    def __getitem__(self, idx: Union[Tensor, int]) -> BoardItem:
         """Returns the item at the given index."""
         if isinstance(idx, Tensor):
             idx = idx.item()
@@ -95,7 +92,11 @@ class ParquetChessDataset(Dataset):
         outputs = {
             "board": t_board,
             "active_color": t_color,
-            "castling": t_castling
+            "castling": t_castling,
+            "stockfish_eval": None,
+            "winner": None,
+            "move_id": None,
+            "total_moves": None
         }
 
         if self.stockfish_eval:
@@ -107,12 +108,14 @@ class ParquetChessDataset(Dataset):
             outputs["winner"] = t_winner
 
         if self.move_count:
-            t_move_count = torch.tensor(data["total_moves"][0])
-            outputs["total_moves"] = t_move_count
+            t_total_moves = torch.tensor(data["total_moves"][0])
+            t_move_id = torch.tensor(data["move_id"][0])
+            outputs["total_moves"] = t_total_moves
+            outputs["move_id"] = t_move_id
 
-        return outputs
+        return BoardItem(**outputs)
 
-    def __getitems__(self, indices: Union[Tensor, list[int]]) -> dict[str, Tensor]:
+    def __getitems__(self, indices: Union[Tensor, list[int]]) -> BoardItem:
         """Returns the items at the given indices."""
         if isinstance(indices, Tensor):
             indices = indices.tolist()
@@ -133,7 +136,11 @@ class ParquetChessDataset(Dataset):
         outputs = {
             "board": t_boards,
             "active_color": t_colors,
-            "castling": t_castlings
+            "castling": t_castlings,
+            "stockfish_eval": None,
+            "winner": None,
+            "move_id": None,
+            "total_moves": None
         }
 
         if self.stockfish_eval:
@@ -145,10 +152,12 @@ class ParquetChessDataset(Dataset):
             outputs["winner"] = t_winners
 
         if self.move_count:
-            t_move_counts = torch.tensor(data["total_moves"])
-            outputs["total_moves"] = t_move_counts
+            t_totals_moves = torch.tensor(data["total_moves"])
+            t_moves_id = torch.tensor(data["move_id"])
+            outputs["total_moves"] = t_totals_moves
+            outputs["move_id"] = t_moves_id
 
-        return outputs
+        return BoardItem(**outputs)
 
     def downsampling(self, seed: int = 42, ratio: float = 0.5) -> None:
         """Downsample the dataset.

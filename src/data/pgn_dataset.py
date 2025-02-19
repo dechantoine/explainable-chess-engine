@@ -8,52 +8,44 @@ import torch
 from loguru import logger
 from pympler import asizeof
 from torch import Tensor
-from torch.utils.data import Dataset
 from tqdm.contrib.concurrent import process_map
 
-from src.data.data_utils import (
-    batch_boards_to_tensor,
-    batch_moves_to_tensor,
-    batch_results_to_tensor,
-    board_to_tensor,
-    format_board,
-    moves_to_tensor,
-    result_to_tensor,
-)
+from src.data.base_dataset import BaseChessDataset, BoardItem
+from src.data.data_utils import batch_boards_to_tensor, board_to_tensor, result_to_tensor
 
 
-class PGNDataset(Dataset):
+class PGNDataset(BaseChessDataset):
     """Chess boards with legal moves dataset."""
 
     @logger.catch
     def __init__(
-        self,
-        root_dir: str,
-        return_moves: bool = False,
-        return_outcome: bool = False,
-        transform: bool = False,
-        include_draws: bool = False,
-        in_memory: bool = False,
-        num_workers: int = 1,
+            self,
+            root_dir: str,
+            include_draws: bool = False,
+            in_memory: bool = False,
+            num_workers: int = 1,
+            winner: bool = False,
+            move_count: bool = False
     ):
         """
         Arguments:
             root_dir (string): Directory with all the PGNs.
-            return_moves (bool): Return the legal moves for each board.
-            return_outcome (bool): Return the outcome of the game for each board.
-            transform (bool): Apply the transform to the boards and legal moves. Always True if in_memory is True.
             include_draws (bool): Include draws in the dataset.
             in_memory (bool): Load the dataset in memory. Use with caution for large datasets. Returns transformed tensors.
             num_workers (int): Number of workers for the DataLoader. Only used if in_memory is True.
+            winner (bool): Whether to include winner in outputs.
+            move_count (bool): Whether to include move count in outputs.
         """
+        super().__init__(stockfish_eval=False,
+                         winner=winner,
+                         move_count=move_count)
+
         self.root_dir = root_dir
-        self.transform = transform
-        self.return_moves = return_moves
-        self.return_outcome = return_outcome
         self.list_pgn_files = [
             f for f in os.listdir(self.root_dir) if f.endswith(".pgn")
         ]
-        self.board_indices, self.results = self.get_boards_indices(
+        self.list_pgn_files.sort()
+        self.board_indices = self.get_boards_indices(
             include_draws=include_draws
         )
         self.hash = self.get_hash()
@@ -61,7 +53,6 @@ class PGNDataset(Dataset):
         self.num_workers = num_workers
 
         if self.in_memory:
-            self.transform = True
             logger.info("Loading the dataset in memory...")
             self.load_in_memory()
             self.log_memory()
@@ -75,20 +66,19 @@ class PGNDataset(Dataset):
 
     @logger.catch
     def get_boards_indices(
-        self,
-        include_draws: bool = False,
-    ) -> list[tuple[int, int, int]] and list[int]:
+            self,
+            include_draws: bool = False,
+    ) -> list[tuple[int, int, int]]:
         """Get the indices of all the boards in the dataset.
 
         Args:
             include_draws (bool): Include draws in the dataset.
 
         Returns: list[tuple[int, int, int]] and list[int]: List of tuples containing the file index, game index,
-        and move index + List of results.
+        and move index
 
         """
         list_board_indices = []
-        list_results = []
         for i, file in enumerate(self.list_pgn_files):
             pgn = open(self.root_dir + "/" + file)
             j = -1
@@ -114,16 +104,13 @@ class PGNDataset(Dataset):
                         continue
 
                     list_board_indices.extend(
-                        [(i, j, k) for k in range(len(list(game.mainline_moves())))]
-                    )
-                    list_results.extend(
-                        [result[0] for _ in range(len(list(game.mainline_moves())))]
+                        [(i, j, k) for k in range(1, len(list(game.mainline_moves()))+1)]
                     )
 
-        return list_board_indices, list_results
+        return list_board_indices
 
     @logger.catch
-    def retrieve_board(self, idx: int) -> (chess.Board, int, int, str):
+    def retrieve_board(self, idx: int) -> (chess.Board, int, int, int):
         """Retrieve the board at the given index of the dataset from files.
 
         Args:
@@ -133,7 +120,7 @@ class PGNDataset(Dataset):
             board (chess.Board): The board at the given index.
             move_id (int): The latest move index in the game.
             total_moves (int): The total number of moves in the game.
-            result (str): The result of the game.
+            result (int): The result of the game.
 
         """
         file_id, game_id, move_id = self.board_indices[idx]
@@ -144,12 +131,12 @@ class PGNDataset(Dataset):
             chess.pgn.skip_game(pgn)
         game = chess.pgn.read_game(pgn)
 
-        result = game.headers["Result"]
+        result = int(result_to_tensor(game.headers["Result"])[0])
         board = game.board()
         mainline = list(game.mainline_moves())
         for move in mainline[:move_id]:
             board.push(move)
-        return board, move_id, len(mainline), result
+        return board, (move_id // 2) + 1, (len(mainline) // 2) + 1, result
 
     @logger.catch
     def load_in_memory(self):
@@ -164,84 +151,56 @@ class PGNDataset(Dataset):
         board_samples, move_ids, game_lens, game_results = zip(*retrieves)
 
         board_samples = list(board_samples)
+        self.board_samples = [board.fen() for board in board_samples]
 
-        self.board_samples = [format_board(board) for board in board_samples]
+        if self.winner:
+            self.winners = game_results
 
-        if self.return_moves:
-            self.legal_moves_samples = [
-                list(board.legal_moves) for board in board_samples
-            ]
-
-        if self.return_outcome:
-            self.outcomes = [
-                {
-                    "move_id": move_id,
-                    "game_length": game_len,
-                    "game_result": game_result,
-                }
-                for move_id, game_len, game_result in zip(
-                    move_ids, game_lens, game_results
-                )
-            ]
+        if self.move_count:
+            self.moves_ids = move_ids
+            self.total_moves = game_lens
 
     @logger.catch
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.board_indices)
 
     @logger.catch
-    def __getitem__(self, idx: Union[Tensor, int]):
+    def __getitem__(self, idx: Union[Tensor, int]) -> BoardItem:
         if torch.is_tensor(idx):
             idx = int(idx.item())
 
         if self.in_memory:
             board_sample = self.board_samples[idx]
+            board_sample = chess.Board(fen=board_sample)
 
-            legal_moves_sample = (
-                self.legal_moves_samples[idx] if self.return_moves else None
-            )
-            outcome = self.outcomes[idx] if self.return_outcome else None
+            winner = self.winners[idx] if self.winner else None
+            move_id = self.moves_ids[idx] if self.move_count else None
+            total_moves = self.total_moves[idx] if self.move_count else None
 
         else:
-            board_sample, move_id, game_len, game_result = self.retrieve_board(idx=idx)
-            legal_moves_sample = (
-                list(board_sample.legal_moves) if self.return_moves else None
-            )
-            outcome = (
-                {
-                    "move_id": move_id,
-                    "game_length": game_len,
-                    "game_result": game_result,
-                }
-                if self.return_outcome
-                else None
-            )
+            board_sample, move_id, total_moves, winner = self.retrieve_board(idx=idx)
 
-        if self.transform:
-            board_sample = torch.from_numpy(
-                board_to_tensor(board=board_sample, from_compact_str=self.in_memory)
-            )
+        board_array, active_color, castling = board_to_tensor(board=board_sample)
 
-            if self.return_moves:
-                legal_moves_sample = torch.from_numpy(
-                    moves_to_tensor(moves=legal_moves_sample)
-                )
+        board_sample = torch.tensor(board_array)
+        active_color = torch.tensor(active_color)
+        castling = torch.tensor(castling)
 
-            if self.return_outcome:
-                move_id, game_len, game_result = outcome.values()
-                outcome = torch.tensor(
-                    [move_id, game_len, result_to_tensor(result=game_result)[0]]
-                )
+        if self.winner:
+            winner = torch.tensor([winner])
 
-        if self.return_moves and self.return_outcome:
-            return board_sample, legal_moves_sample, outcome
+        if self.move_count:
+            move_id = torch.tensor([move_id])
+            total_moves = torch.tensor([total_moves])
 
-        if self.return_moves:
-            return board_sample, legal_moves_sample
-
-        if self.return_outcome:
-            return board_sample, outcome
-
-        return board_sample
+        return BoardItem(
+            board=board_sample,
+            active_color=active_color,
+            castling=castling,
+            winner=winner if self.winner else None,
+            move_id=move_id if self.move_count else None,
+            total_moves=total_moves if self.move_count else None
+        )
 
     @logger.catch
     def __getitems__(self, indices: Union[Tensor, list[int]]):
@@ -250,89 +209,52 @@ class PGNDataset(Dataset):
 
         if self.in_memory:
             board_samples = [self.board_samples[i] for i in indices]
-            legal_moves_samples = (
-                [self.legal_moves_samples[i] for i in indices]
-                if self.return_moves
-                else None
-            )
-            outcomes = (
-                [self.outcomes[i] for i in indices] if self.return_outcome else None
-            )
+            board_samples = [chess.Board(fen=board_sample) for board_sample in board_samples]
+
+            winners = [self.winners[i] for i in indices] if self.winner else None
+            move_ids = [self.moves_ids[i] for i in indices] if self.move_count else None
+            totals_moves = [self.total_moves[i] for i in indices] if self.move_count else None
 
         else:
-            board_samples, move_ids, game_lens, game_results = zip(
+            board_samples, move_ids, totals_moves, winners = zip(
                 *[self.retrieve_board(idx=i) for i in indices]
             )
 
-            board_samples = list(board_samples)
-            legal_moves_samples = (
-                [list(board.legal_moves) for board in board_samples]
-                if self.return_moves
-                else None
-            )
-            outcomes = (
-                [
-                    {
-                        "move_id": move_id,
-                        "game_length": game_len,
-                        "game_result": game_result,
-                    }
-                    for move_id, game_len, game_result in zip(
-                        move_ids, game_lens, game_results
-                    )
-                ]
-                if self.return_outcome
-                else None
-            )
+        board_samples, active_colors, castlings = batch_boards_to_tensor(
+            batch_boards=board_samples
+        )
 
-        if self.transform:
-            # logger.info("Transforming the boards to tensors...")
-            board_samples = torch.from_numpy(
-                batch_boards_to_tensor(
-                    batch_boards=board_samples, from_compact_str=self.in_memory
-                )
-            )
-            # logger.info("Transforming the legal moves to tensors...")
-            if self.return_moves:
-                legal_moves_samples = torch.from_numpy(
-                    batch_moves_to_tensor(batch_moves=legal_moves_samples)
-                )
+        if self.winner:
+            winners = torch.tensor([[w] for w in winners])
 
-            if self.return_outcome:
-                moves_ids = np.array([outcome["move_id"] for outcome in outcomes])
-                game_lens = np.array([outcome["game_length"] for outcome in outcomes])
-                # logger.info("Transforming the outcomes to tensors...")
-                game_results = batch_results_to_tensor(
-                    batch_results=[outcome["game_result"] for outcome in outcomes]
-                ).flatten()
-                outcomes = torch.tensor(
-                    np.array([moves_ids, game_lens, game_results]).T
-                )
+        if self.move_count:
+            move_ids = torch.tensor([[m] for m in move_ids])
+            totals_moves = torch.tensor([[t] for t in totals_moves])
 
-        if self.return_moves and self.return_outcome:
-            return board_samples, legal_moves_samples, outcomes
-
-        if self.return_moves:
-            return board_samples, legal_moves_samples
-
-        if self.return_outcome:
-            return board_samples, outcomes
-
-        return board_samples
+        return BoardItem(
+            board=board_samples,
+            active_color=active_colors,
+            castling=castlings,
+            winner=winners if self.winner else None,
+            move_id=move_ids if self.move_count else None,
+            total_moves=totals_moves if self.move_count else None
+        )
 
     @logger.catch
     def log_memory(self):
         """Log the memory usage of the dataset."""
         memusage = {
-            "board_indices": asizeof.asizeof(self.board_indices) / 1e6,
             "board_samples": asizeof.asizeof(self.board_samples) / 1e6,
         }
-        if self.return_moves:
-            memusage["legal_moves_samples"] = (
-                asizeof.asizeof(self.legal_moves_samples) / 1e6
+        if self.move_count:
+            memusage["moves_id"] = (
+                    asizeof.asizeof(self.moves_ids) / 1e6
             )
-        if self.return_outcome:
-            memusage["outcomes"] = asizeof.asizeof(self.outcomes) / 1e6
+            memusage["total_moves"] = (
+                    asizeof.asizeof(self.total_moves) / 1e6
+            )
+        if self.winner:
+            memusage["winners"] = asizeof.asizeof(self.winners) / 1e6
 
         report = "Dataset loaded in memory. Memory usage: "
         for key, value in memusage.items():
